@@ -114,22 +114,42 @@ jobs:
           mka recoveryimage -j"$(nproc --all)"
           
       - name: Collect images
+        shell: bash
         run: |
           set -e
 
-          OUT="fox_12.1/out/target/product/tanzanite"
+          echo "===== SEARCHING FOR BUILD OUTPUT ====="
 
-          test -f "$OUT/recovery.img"
+          find fox_12.1/out/target/product/tanzanite \
+            -type f \
+            \( -name "*.img" -o -name "*.zip" \) \
+            -printf '%p (%s bytes)\n' \
+            2>/dev/null || true
 
           mkdir -p release
 
-          cp "$OUT"/*.img release/ 2>/dev/null || true
+          find fox_12.1/out/target/product/tanzanite \
+            -type f \
+            -name "*.img" \
+            -exec cp {} release/ \; \
+            2>/dev/null || true
+
+          echo "===== COLLECTED FILES ====="
+          ls -lah release
+
+          if ! find release -type f -name "*.img" | grep -q .; then
+            echo "ERROR: No IMG files were produced."
+            exit 1
+          fi
 
           cd release
 
           zip -9 \
             "../OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip" \
             ./*.img
+
+          echo "===== FINAL ZIP ====="
+          ls -lh "../OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip"
 
       - name: Upload OrangeFox ZIP
         uses: actions/upload-artifact@v4
