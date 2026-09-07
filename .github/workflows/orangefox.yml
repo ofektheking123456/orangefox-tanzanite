@@ -101,38 +101,16 @@ jobs:
         working-directory: fox_12.1
         shell: bash
         run: |
-          set +e
+          echo "===== Loading OrangeFox environment ====="
 
-          echo "===== RUNNING ENVSETUP ====="
-          bash -x build/envsetup.sh
-          ENV_STATUS=$?
+          source build/envsetup.sh || true
 
-          echo "===== ENVSETUP EXIT CODE: $ENV_STATUS ====="
+          echo "===== ENVSETUP FINISHED ====="
 
-          if [ "$ENV_STATUS" -ne 0 ]; then
-            echo "===== DEBUG: DEVICE TREE ====="
-            ls -la device/xiaomi/tanzanite/
-            echo "===== DEBUG: VENDORSETUP ====="
-            bash -x device/xiaomi/tanzanite/vendorsetup.sh
-            VENDOR_STATUS=$?
-            echo "===== VENDORSETUP EXIT CODE: $VENDOR_STATUS ====="
-            exit "$ENV_STATUS"
-          fi
-
-          echo "===== ENVSETUP COMPLETE ====="
-
+          echo "===== Selecting Tanzanite ====="
           lunch twrp_tanzanite-eng
-          LUNCH_STATUS=$?
 
-          echo "===== LUNCH EXIT CODE: $LUNCH_STATUS ====="
-
-          if [ "$LUNCH_STATUS" -ne 0 ]; then
-            exit "$LUNCH_STATUS"
-          fi
-
-          echo "===== STARTING BUILD ====="
-
-          mka recoveryimage -j"$(nproc --all)"
+          echo "===== Starting OrangeFox build ====="
           mka recoveryimage -j"$(nproc --all)"
           
       - name: Collect images
