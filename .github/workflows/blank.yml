@@ -1,36 +1,123 @@
-# This is a basic workflow to help you get started with Actions
+name: OrangeFox Recovery - Redmi Note 14 4G
 
-name: CI
-
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+permissions:
+  contents: write
+
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
 
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Setup Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+
+      - name: Install dependencies
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          sudo apt-get update
+          sudo apt-get install -y \
+            git-core gnupg flex bison build-essential zip curl \
+            zlib1g-dev libc6-dev-i386 libncurses5-dev \
+            x11proto-core-dev libx11-dev libreadline-dev \
+            libgl1-mesa-dev libxml2-utils xsltproc unzip \
+            python3 python3-pip bc cpio rsync lz4 \
+            libssl-dev libelf-dev
+
+      - name: Create swap
+        run: |
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
+      - name: Sync OrangeFox
+        run: |
+          git clone --depth=1 https://gitlab.com/OrangeFox/sync.git fox_sync
+          cd fox_sync
+          bash orangefox_sync.sh \
+            --branch 12.1 \
+            --path "$GITHUB_WORKSPACE/fox_12.1"
+
+      - name: Clone Tanzanite recovery tree
+        run: |
+          mkdir -p fox_12.1/device/xiaomi
+
+          git clone --depth=1 \
+            -b fox_12.1 \
+            https://github.com/DVWorkspaces/device_xiaomi_tanzanite_recovery.git \
+            fox_12.1/device/xiaomi/tanzanite
+
+      - name: Verify device tree
+        run: |
+          test -f fox_12.1/device/xiaomi/tanzanite/fox_tanzanite.mk
+          test -f fox_12.1/device/xiaomi/tanzanite/twrp_tanzanite.mk
+          test -f fox_12.1/device/xiaomi/tanzanite/BoardConfig.mk
+          test -f fox_12.1/device/xiaomi/tanzanite/prebuilt/dtb
+
+          echo "Tanzanite tree OK"
+
+      - name: Build OrangeFox
+        working-directory: fox_12.1
+        shell: bash
+        run: |
+          set -e
+
+          source build/envsetup.sh
+
+          lunch twrp_tanzanite-eng
+
+          mka recoveryimage -j"$(nproc --all)"
+
+      - name: Collect images
+        run: |
+          set -e
+
+          OUT="fox_12.1/out/target/product/tanzanite"
+
+          test -f "$OUT/recovery.img"
+
+          mkdir -p release
+
+          cp "$OUT"/*.img release/ 2>/dev/null || true
+
+          cd release
+
+          zip -9 \
+            "../OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip" \
+            ./*.img
+
+      - name: Upload OrangeFox ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrangeFox-tanzanite
+          path: OrangeFox-tanzanite-${{ github.run_number }}.zip
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: orangefox-tanzanite-${{ github.run_number }}
+          name: OrangeFox Tanzanite Build ${{ github.run_number }}
+          generate_release_notes: true
+          files: OrangeFox-tanzanite-${{ github.run_number }}.zip
