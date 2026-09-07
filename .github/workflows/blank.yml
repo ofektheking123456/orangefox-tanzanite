@@ -59,7 +59,18 @@ jobs:
 
           swapon --show
           free -h
+          
+      - name: Install repo tool
+        run: |
+          set -e
 
+          sudo curl -L \
+            https://storage.googleapis.com/git-repo-downloads/repo \
+            -o /usr/local/bin/repo
+
+          sudo chmod +x /usr/local/bin/repo
+
+          repo --version
       - name: Sync OrangeFox
         run: |
           git clone --depth=1 https://gitlab.com/OrangeFox/sync.git fox_sync
