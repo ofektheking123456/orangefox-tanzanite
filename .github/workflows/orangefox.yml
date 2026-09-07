@@ -112,45 +112,46 @@ jobs:
 
           echo "===== Starting OrangeFox build ====="
           mka recoveryimage -j"$(nproc --all)"
-          
+    
       - name: Collect images
         shell: bash
         run: |
           set -e
 
-          echo "===== SEARCHING FOR BUILD OUTPUT ====="
+          echo "===== PRODUCT OUTPUT DIRECTORY ====="
+          ls -lah fox_12.1/out/target/product/tanzanite 2>/dev/null || true
 
-          find fox_12.1/out/target/product/tanzanite \
+          echo "===== ALL IMAGES IN OUT DIRECTORY ====="
+          find fox_12.1/out \
             -type f \
-            \( -name "*.img" -o -name "*.zip" \) \
+            -name "*.img" \
             -printf '%p (%s bytes)\n' \
             2>/dev/null || true
 
-          mkdir -p release
-
-          find fox_12.1/out/target/product/tanzanite \
+          echo "===== ALL RECOVERY FILES ====="
+          find fox_12.1/out \
             -type f \
-            -name "*.img" \
-            -exec cp {} release/ \; \
+            \( -iname "*recovery*" -o -iname "*vendor_boot*" -o -iname "*boot*" \) \
+            -printf '%p (%s bytes)\n' \
             2>/dev/null || true
 
-          echo "===== COLLECTED FILES ====="
-          ls -lah release
+          echo "===== BUILD TARGET INFORMATION ====="
+          find fox_12.1/out/target/product/tanzanite \
+            -maxdepth 1 \
+            -type f \
+            -printf '%f\n' \
+            2>/dev/null | sort || true
 
-          if ! find release -type f -name "*.img" | grep -q .; then
-            echo "ERROR: No IMG files were produced."
-            exit 1
-          fi
+          echo "===== BUILD STATUS FILES ====="
+          find fox_12.1/out/target/product/tanzanite \
+            -maxdepth 1 \
+            -type f \
+            \( -name "installed-files*.txt" -o -name "build*.prop" \) \
+            -printf '%p\n' \
+            2>/dev/null || true
 
-          cd release
-
-          zip -9 \
-            "../OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip" \
-            ./*.img
-
-          echo "===== FINAL ZIP ====="
-          ls -lh "../OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip"
-
+          exit 1
+          
       - name: Upload OrangeFox ZIP
         uses: actions/upload-artifact@v4
         with:
