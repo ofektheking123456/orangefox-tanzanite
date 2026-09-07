@@ -101,14 +101,16 @@ jobs:
         working-directory: fox_12.1
         shell: bash
         run: |
-          set -e
-
           source build/envsetup.sh
+
+          echo "===== ENVSETUP COMPLETE ====="
 
           lunch twrp_tanzanite-eng
 
-          mka recoveryimage -j"$(nproc --all)"
+          echo "===== LUNCH COMPLETE ====="
 
+          mka recoveryimage -j"$(nproc --all)"
+          
       - name: Collect images
         run: |
           set -e
