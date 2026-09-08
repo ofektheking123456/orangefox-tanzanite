@@ -111,30 +111,43 @@ jobs:
           lunch twrp_tanzanite-eng
 
           echo "===== Starting OrangeFox build ====="
-          mka recoveryimage -j"$(nproc --all)"
+          mka vendorbootimage -j"$(nproc --all)"
     
-      - name: Package OrangeFox
+      - name: Collect images
         shell: bash
         run: |
           set -e
 
           OUT="fox_12.1/out/target/product/tanzanite"
+          mkdir -p release
 
-          echo "===== ORANGEFOX BUILD OUTPUT ====="
-          find "$OUT" -maxdepth 2 -type f -printf '%p (%s bytes)\n' | sort
+          echo "===== SEARCHING FOR IMAGES ====="
 
-          echo "===== RECOVERY DIRECTORY ====="
-          find "$OUT/recovery" -type f -printf '%p (%s bytes)\n' | head -100
+          find fox_12.1/out \
+            -type f \
+            -name "*.img" \
+            -printf '%p (%s bytes)\n' \
+            2>/dev/null || true
 
-          echo "===== FOX AIK ====="
-          find "$OUT/FOX_AIK" -maxdepth 3 -type f -printf '%p (%s bytes)\n' 2>/dev/null | head -100
+          find "$OUT" \
+            -maxdepth 1 \
+            -type f \
+            -name "*.img" \
+            -exec cp {} release/ \;
 
-          echo "===== BUILD TOOLS ====="
-          find "$OUT" -type f \
-            \( -name "mkbootimg*" -o -name "vendor_boot*" -o -name "unpack_bootimg*" \) \
-            -printf '%p\n' 2>/dev/null || true
+          echo "===== COLLECTED IMAGES ====="
+          ls -lah release
 
-          exit 1
+          if [ -z "$(find release -name '*.img' -print -quit)" ]; then
+            echo "ERROR: No IMG files were produced."
+            exit 1
+          fi
+
+          cd release
+          zip -9 "../OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip" ./*.img
+
+          echo "===== FINAL ZIP ====="
+          ls -lh "../OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip"
           
       - name: Upload OrangeFox ZIP
         uses: actions/upload-artifact@v4
