@@ -113,42 +113,26 @@ jobs:
           echo "===== Starting OrangeFox build ====="
           mka recoveryimage -j"$(nproc --all)"
     
-      - name: Collect images
+      - name: Package OrangeFox
         shell: bash
         run: |
           set -e
 
-          echo "===== PRODUCT OUTPUT DIRECTORY ====="
-          ls -lah fox_12.1/out/target/product/tanzanite 2>/dev/null || true
+          OUT="fox_12.1/out/target/product/tanzanite"
 
-          echo "===== ALL IMAGES IN OUT DIRECTORY ====="
-          find fox_12.1/out \
-            -type f \
-            -name "*.img" \
-            -printf '%p (%s bytes)\n' \
-            2>/dev/null || true
+          echo "===== ORANGEFOX BUILD OUTPUT ====="
+          find "$OUT" -maxdepth 2 -type f -printf '%p (%s bytes)\n' | sort
 
-          echo "===== ALL RECOVERY FILES ====="
-          find fox_12.1/out \
-            -type f \
-            \( -iname "*recovery*" -o -iname "*vendor_boot*" -o -iname "*boot*" \) \
-            -printf '%p (%s bytes)\n' \
-            2>/dev/null || true
+          echo "===== RECOVERY DIRECTORY ====="
+          find "$OUT/recovery" -type f -printf '%p (%s bytes)\n' | head -100
 
-          echo "===== BUILD TARGET INFORMATION ====="
-          find fox_12.1/out/target/product/tanzanite \
-            -maxdepth 1 \
-            -type f \
-            -printf '%f\n' \
-            2>/dev/null | sort || true
+          echo "===== FOX AIK ====="
+          find "$OUT/FOX_AIK" -maxdepth 3 -type f -printf '%p (%s bytes)\n' 2>/dev/null | head -100
 
-          echo "===== BUILD STATUS FILES ====="
-          find fox_12.1/out/target/product/tanzanite \
-            -maxdepth 1 \
-            -type f \
-            \( -name "installed-files*.txt" -o -name "build*.prop" \) \
-            -printf '%p\n' \
-            2>/dev/null || true
+          echo "===== BUILD TOOLS ====="
+          find "$OUT" -type f \
+            \( -name "mkbootimg*" -o -name "vendor_boot*" -o -name "unpack_bootimg*" \) \
+            -printf '%p\n' 2>/dev/null || true
 
           exit 1
           
