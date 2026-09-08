@@ -36,7 +36,7 @@ jobs:
 
 
       # ==========================================
-      # JAVA
+      # JAVA 11
       # ==========================================
       - name: Setup Java 11
         uses: actions/setup-java@v4
@@ -81,7 +81,7 @@ jobs:
 
 
       # ==========================================
-      # SWAP
+      # CREATE 16GB SWAP
       # ==========================================
       - name: Create swap
         run: |
@@ -103,7 +103,7 @@ jobs:
 
 
       # ==========================================
-      # REPO TOOL
+      # INSTALL REPO TOOL
       # ==========================================
       - name: Install repo tool
         run: |
@@ -137,7 +137,7 @@ jobs:
 
 
       # ==========================================
-      # TANZANITE DEVICE TREE
+      # CLONE TANZANITE DEVICE TREE
       # ==========================================
       - name: Clone Tanzanite recovery tree
         run: |
@@ -158,10 +158,17 @@ jobs:
         run: |
           set -e
 
-          test -f fox_12.1/device/xiaomi/tanzanite/fox_tanzanite.mk
-          test -f fox_12.1/device/xiaomi/tanzanite/twrp_tanzanite.mk
-          test -f fox_12.1/device/xiaomi/tanzanite/BoardConfig.mk
-          test -f fox_12.1/device/xiaomi/tanzanite/prebuilt/dtb
+          test -f \
+            fox_12.1/device/xiaomi/tanzanite/fox_tanzanite.mk
+
+          test -f \
+            fox_12.1/device/xiaomi/tanzanite/twrp_tanzanite.mk
+
+          test -f \
+            fox_12.1/device/xiaomi/tanzanite/BoardConfig.mk
+
+          test -f \
+            fox_12.1/device/xiaomi/tanzanite/prebuilt/dtb
 
           echo "======================================"
           echo "Tanzanite device tree: OK"
@@ -169,20 +176,26 @@ jobs:
 
 
       # ==========================================
-      # SHOW CONFIG
+      # SHOW DEVICE CONFIGURATION
       # ==========================================
       - name: Show device configuration
         run: |
-          echo "===== BoardConfig ====="
+          echo "======================================"
+          echo "BOARD CONFIGURATION"
+          echo "======================================"
 
           grep -E \
             'BOARD_BOOT_HEADER_VERSION|BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE|BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT|BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE|BOARD_USES_GENERIC_KERNEL_IMAGE' \
-            fox_12.1/device/xiaomi/tanzanite/BoardConfig.mk || true
+            fox_12.1/device/xiaomi/tanzanite/BoardConfig.mk \
+            || true
 
           echo ""
-          echo "===== Product files ====="
+          echo "======================================"
+          echo "DEVICE TREE FILES"
+          echo "======================================"
 
-          ls -lah fox_12.1/device/xiaomi/tanzanite/
+          ls -lah \
+            fox_12.1/device/xiaomi/tanzanite/
 
 
       # ==========================================
@@ -195,142 +208,235 @@ jobs:
           set -e
 
           echo "======================================"
-          echo "Loading OrangeFox environment"
+          echo "LOADING ORANGEFOX ENVIRONMENT"
           echo "======================================"
 
           source build/envsetup.sh || true
 
+
+          # ======================================
+          # VENDOR_BOOT RECOVERY
+          # Android Boot Header Version 4
+          # ======================================
+
           export FOX_VENDOR_BOOT_RECOVERY=1
+
+          echo ""
+          echo "FOX_VENDOR_BOOT_RECOVERY=$FOX_VENDOR_BOOT_RECOVERY"
+
+
+          # ======================================
+          # A/B CONFIGURATION
+          # ======================================
+
           export FOX_AB_DEVICE=1
           export FOX_VIRTUAL_AB_DEVICE=1
 
-          echo "FOX_VENDOR_BOOT_RECOVERY=$FOX_VENDOR_BOOT_RECOVERY"
+          echo "FOX_AB_DEVICE=$FOX_AB_DEVICE"
+          echo "FOX_VIRTUAL_AB_DEVICE=$FOX_VIRTUAL_AB_DEVICE"
 
+
+          # ======================================
+          # SELECT TANZANITE
+          # ======================================
+
+          echo ""
           echo "======================================"
-          echo "Selecting Tanzanite"
+          echo "SELECTING TANZANITE"
           echo "======================================"
 
           lunch twrp_tanzanite-eng
 
+
+          # ======================================
+          # BUILD VENDOR_BOOT
+          # ======================================
+
+          echo ""
           echo "======================================"
-          echo "Building OrangeFox"
+          echo "BUILDING ORANGEFOX"
           echo "======================================"
 
           mka vendorbootimage -j"$(nproc --all)"
 
+
+          echo ""
           echo "======================================"
           echo "BUILD FINISHED"
           echo "======================================"
 
-          echo ""
-          echo "===== SEARCHING FOR RECOVERY RAMDISK ====="
-
-          find out/target/product/tanzanite \
-            -type f \
-            \( -name "*.cpio" -o -name "*ramdisk*" \) \
-            -printf '%p (%s bytes)\n' \
-            2>/dev/null || true
-
-          echo ""
-          echo "===== SEARCHING FOR ORANGEFOX INSTALLER ====="
-
-          find out/target/product/tanzanite \
-            -type f \
-            -iname "*orangefox*.zip" \
-            -printf '%p (%s bytes)\n' \
-            2>/dev/null || true
-
 
       # ==========================================
-      # INSPECT OUTPUT
+      # INSPECT BUILD OUTPUT
       # ==========================================
       - name: Inspect build output
         if: always()
         shell: bash
         run: |
 
+          OUT="fox_12.1/out/target/product/tanzanite"
+
           echo "======================================"
           echo "PRODUCT OUTPUT"
           echo "======================================"
 
-          OUT="fox_12.1/out/target/product/tanzanite"
-
-          if [ -d "$OUT" ]; then
-
-            ls -lah "$OUT"
-
-            echo ""
-            echo "===== IMG FILES ====="
-
-            find "$OUT" \
-              -type f \
-              -name "*.img" \
-              -printf '%p (%s bytes)\n' \
-              2>/dev/null || true
-
-            echo ""
-            echo "===== ZIP FILES ====="
-
-            find "$OUT" \
-              -type f \
-              -name "*.zip" \
-              -printf '%p (%s bytes)\n' \
-              2>/dev/null || true
-
-            echo ""
-            echo "===== CPIO FILES ====="
-
-            find "$OUT" \
-              -type f \
-              -name "*.cpio" \
-              -printf '%p (%s bytes)\n' \
-              2>/dev/null || true
-
-          else
-
+          if [ ! -d "$OUT" ]; then
             echo "Product output directory does not exist."
-
+            exit 0
           fi
 
 
-      # ==========================================
-      # COLLECT REAL ORANGEFOX INSTALLER
-      # ==========================================
-      - name: Collect OrangeFox files
-        if: always()
-        shell: bash
-        run: |
-          set -e
-
-          OUT="fox_12.1/out/target/product/tanzanite"
-
+          echo ""
           echo "======================================"
-          echo "ORANGEFOX BUILD OUTPUT"
+          echo "ALL IMG FILES"
           echo "======================================"
 
-          echo ""
-          echo "===== CPIO FILES ====="
-          find "$OUT" \
-            -type f \
-            -name "*.cpio" \
-            -printf '%p (%s bytes)\n' \
-            2>/dev/null || true
-
-          echo ""
-          echo "===== IMG FILES ====="
           find "$OUT" \
             -type f \
             -name "*.img" \
             -printf '%p (%s bytes)\n' \
-            2>/dev/null || true
+            2>/dev/null \
+            || true
+
 
           echo ""
-          echo "===== ORANGEFOX ZIP FILES ====="
+          echo "======================================"
+          echo "ALL CPIO FILES"
+          echo "======================================"
+
+          find "$OUT" \
+            -type f \
+            -name "*.cpio" \
+            -printf '%p (%s bytes)\n' \
+            2>/dev/null \
+            || true
+
+
+          echo ""
+          echo "======================================"
+          echo "ALL ORANGEFOX ZIP FILES"
+          echo "======================================"
+
           find "$OUT" \
             -type f \
             -iname "*orangefox*.zip" \
             -printf '%p (%s bytes)\n' \
-            2>/dev/null || true
+            2>/dev/null \
+            || true
+
+
+          echo ""
+          echo "======================================"
+          echo "RECOVERY DIRECTORY"
+          echo "======================================"
+
+          find "$OUT/recovery" \
+            -maxdepth 2 \
+            -type f \
+            -printf '%p (%s bytes)\n' \
+            2>/dev/null \
+            || true
+
+
+      # ==========================================
+      # PACKAGE BUILD FILES
+      # ==========================================
+      - name: Package OrangeFox
+        shell: bash
+        run: |
+
+          set -e
+
+          OUT="fox_12.1/out/target/product/tanzanite"
+
+          mkdir -p release/orangefox
+
+
+          echo "======================================"
+          echo "COLLECTING ORANGEFOX FILES"
+          echo "======================================"
+
+
+          # --------------------------------------
+          # Collect CPIO files
+          # --------------------------------------
+
+          find "$OUT" \
+            -type f \
+            -name "*.cpio" \
+            -exec cp {} release/orangefox/ \;
+
+
+          # --------------------------------------
+          # Collect IMG files
+          # --------------------------------------
+
+          find "$OUT" \
+            -type f \
+            -name "*.img" \
+            -exec cp {} release/orangefox/ \;
+
+
+          echo ""
+          echo "======================================"
+          echo "PACKAGE CONTENTS"
+          echo "======================================"
+
+          ls -lah release/orangefox
+
+
+          # --------------------------------------
+          # Make sure something was produced
+          # --------------------------------------
+
+          if [ -z "$(find release/orangefox \
+            -type f \
+            -print \
+            -quit)" ]; then
+
+            echo ""
+            echo "ERROR: No OrangeFox build files were found."
+            exit 1
+
+          fi
+
+
+          # --------------------------------------
+          # Create ZIP
+          # --------------------------------------
+
+          ZIP_NAME="OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip"
+
+          echo ""
+          echo "======================================"
+          echo "CREATING ZIP"
+          echo "======================================"
+
+          cd release/orangefox
+
+          zip -9 \
+            "../../${ZIP_NAME}" \
+            ./*
+
+          cd ../..
+
+
+          echo ""
+          echo "======================================"
+          echo "FINAL ZIP"
+          echo "======================================"
+
+          ls -lh \
+            "${ZIP_NAME}"
+
+
+          echo ""
+          echo "======================================"
+          echo "ZIP CONTENTS"
+          echo "======================================"
+
+          unzip -l \
+            "${ZIP_NAME}"
 
 
       # ==========================================
@@ -340,13 +446,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: OrangeFox-tanzanite-${{ github.run_number }}
-          path: release/OrangeFox-tanzanite.zip
+          path: OrangeFox-tanzanite-${{ github.run_number }}.zip
           if-no-files-found: error
           retention-days: 90
 
 
       # ==========================================
-      # GITHUB RELEASE
+      # CREATE GITHUB RELEASE
       # ==========================================
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -354,4 +460,4 @@ jobs:
           tag_name: orangefox-tanzanite-${{ github.run_number }}
           name: OrangeFox Tanzanite Build ${{ github.run_number }}
           generate_release_notes: true
-          files: release/OrangeFox-tanzanite.zip
+          files: OrangeFox-tanzanite-${{ github.run_number }}.zip
