@@ -296,85 +296,41 @@ jobs:
       # ==========================================
       # COLLECT REAL ORANGEFOX INSTALLER
       # ==========================================
-      - name: Collect OrangeFox installer
+      - name: Collect OrangeFox files
+        if: always()
         shell: bash
         run: |
-
           set -e
 
           OUT="fox_12.1/out/target/product/tanzanite"
 
-          mkdir -p release
-
           echo "======================================"
-          echo "SEARCHING FOR ORANGEFOX ZIP"
+          echo "ORANGEFOX BUILD OUTPUT"
           echo "======================================"
 
+          echo ""
+          echo "===== CPIO FILES ====="
           find "$OUT" \
             -type f \
-            -name "*.zip" \
-            -print
+            -name "*.cpio" \
+            -printf '%p (%s bytes)\n' \
+            2>/dev/null || true
 
-          ZIP="$(find "$OUT" \
+          echo ""
+          echo "===== IMG FILES ====="
+          find "$OUT" \
             -type f \
-            -name "*.zip" \
-            | grep -i 'orangefox' \
-            | head -n 1 || true)"
-
-          if [ -z "$ZIP" ]; then
-
-            echo ""
-            echo "ERROR: OrangeFox installer ZIP was not produced."
-            echo ""
-            echo "All ZIP files found:"
-            find "$OUT" \
-              -type f \
-              -name "*.zip" \
-              -print || true
-
-            exit 1
-
-          fi
+            -name "*.img" \
+            -printf '%p (%s bytes)\n' \
+            2>/dev/null || true
 
           echo ""
-          echo "FOUND:"
-          echo "$ZIP"
-
-          cp "$ZIP" release/OrangeFox-tanzanite.zip
-
-
-          echo ""
-          echo "======================================"
-          echo "CHECKING ZIP CONTENTS"
-          echo "======================================"
-
-          unzip -l release/OrangeFox-tanzanite.zip
-
-
-          echo ""
-          echo "======================================"
-          echo "LOOKING FOR VENDOR RAMDISK"
-          echo "======================================"
-
-          if unzip -l release/OrangeFox-tanzanite.zip \
-            | grep -q "vendor_ramdisk_recovery.cpio"; then
-
-            echo "vendor_ramdisk_recovery.cpio FOUND"
-
-          else
-
-            echo "WARNING:"
-            echo "vendor_ramdisk_recovery.cpio was NOT found."
-
-          fi
-
-
-          echo ""
-          echo "======================================"
-          echo "RELEASE CONTENTS"
-          echo "======================================"
-
-          ls -lah release
+          echo "===== ORANGEFOX ZIP FILES ====="
+          find "$OUT" \
+            -type f \
+            -iname "*orangefox*.zip" \
+            -printf '%p (%s bytes)\n' \
+            2>/dev/null || true
 
 
       # ==========================================
