@@ -200,22 +200,11 @@ jobs:
 
           source build/envsetup.sh || true
 
-
-          # ======================================
-          # IMPORTANT:
-          # Redmi Note 14 4G uses vendor_boot
-          # recovery with Android boot header v4.
-          # ======================================
-
           export FOX_VENDOR_BOOT_RECOVERY=1
-
-          echo "FOX_VENDOR_BOOT_RECOVERY=$FOX_VENDOR_BOOT_RECOVERY"
-
-
-          # Android 12.1+ / Virtual A/B
           export FOX_AB_DEVICE=1
           export FOX_VIRTUAL_AB_DEVICE=1
 
+          echo "FOX_VENDOR_BOOT_RECOVERY=$FOX_VENDOR_BOOT_RECOVERY"
 
           echo "======================================"
           echo "Selecting Tanzanite"
@@ -223,17 +212,33 @@ jobs:
 
           lunch twrp_tanzanite-eng
 
-
           echo "======================================"
-          echo "Building vendor_boot OrangeFox"
+          echo "Building OrangeFox"
           echo "======================================"
 
           mka vendorbootimage -j"$(nproc --all)"
 
-
           echo "======================================"
           echo "BUILD FINISHED"
           echo "======================================"
+
+          echo ""
+          echo "===== SEARCHING FOR RECOVERY RAMDISK ====="
+
+          find out/target/product/tanzanite \
+            -type f \
+            \( -name "*.cpio" -o -name "*ramdisk*" \) \
+            -printf '%p (%s bytes)\n' \
+            2>/dev/null || true
+
+          echo ""
+          echo "===== SEARCHING FOR ORANGEFOX INSTALLER ====="
+
+          find out/target/product/tanzanite \
+            -type f \
+            -iname "*orangefox*.zip" \
+            -printf '%p (%s bytes)\n' \
+            2>/dev/null || true
 
 
       # ==========================================
