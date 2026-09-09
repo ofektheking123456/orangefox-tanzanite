@@ -178,39 +178,34 @@ jobs:
         run: |
           set -e
 
-          echo "========================================"
-          echo " Loading OrangeFox environment"
-          echo "========================================"
+          STOCK="$GITHUB_WORKSPACE/stock/vendor_boot.img"
 
-          source build/envsetup.sh || true
+          echo "===== VERIFYING STOCK VENDOR_BOOT ====="
+          test -f "$STOCK"
+          ls -lh "$STOCK"
+          sha256sum "$STOCK"
 
-          echo "===== ENVSETUP FINISHED ====="
-
-          echo "===== Vendor boot recovery ====="
-
+          echo "===== ORANGEFOX VARIABLES ====="
           export FOX_VENDOR_BOOT_RECOVERY=1
           export FOX_AB_DEVICE=1
           export FOX_VIRTUAL_AB_DEVICE=1
+          export FOX_REFERENCE_VENDOR_BOOT_IMAGE="$STOCK"
 
           echo "FOX_VENDOR_BOOT_RECOVERY=$FOX_VENDOR_BOOT_RECOVERY"
           echo "FOX_AB_DEVICE=$FOX_AB_DEVICE"
           echo "FOX_VIRTUAL_AB_DEVICE=$FOX_VIRTUAL_AB_DEVICE"
+          echo "FOX_REFERENCE_VENDOR_BOOT_IMAGE=$FOX_REFERENCE_VENDOR_BOOT_IMAGE"
 
-          echo "========================================"
-          echo " Selecting Tanzanite"
-          echo "========================================"
+          echo "===== LOADING ENVIRONMENT ====="
+          source build/envsetup.sh || true
 
+          echo "===== SELECTING TANZANITE ====="
           lunch twrp_tanzanite-eng
 
-          echo "========================================"
-          echo " Starting OrangeFox build"
-          echo "========================================"
-
+          echo "===== BUILDING VENDOR_BOOT ====="
           mka vendorbootimage -j"$(nproc --all)"
 
-          echo "========================================"
-          echo " OrangeFox build finished"
-          echo "========================================"
+          echo "===== BUILD COMPLETE ====="
 
       # ---------------------------------------------------------
       # Inspect build output
