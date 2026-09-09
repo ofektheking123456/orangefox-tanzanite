@@ -1,4 +1,4 @@
-name: OrangeFox Recovery Build
+lname: OrangeFox Recovery Build
 
 on:
   workflow_dispatch:
@@ -10,13 +10,18 @@ jobs:
     steps:
 
       # ============================================================
-      # CHECKOUT
+      # CHECKOUT REPOSITORY
       # ============================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
+
+
+      # ============================================================
+      # PULL GIT LFS FILES
+      # ============================================================
 
       - name: Pull Git LFS files
         shell: bash
@@ -27,8 +32,12 @@ jobs:
           git lfs pull
 
           echo "===== STOCK VENDOR_BOOT ====="
+
           ls -lh stock/vendor_boot.img
           file stock/vendor_boot.img
+
+          echo "===== SIZE ====="
+          stat -c%s stock/vendor_boot.img
 
 
       # ============================================================
@@ -41,8 +50,7 @@ jobs:
           set -e
 
           # Chrome is not required for OrangeFox.
-          # Remove its repository because it can cause
-          # Hash Sum mismatch errors on GitHub runners.
+          # Remove its repository to avoid APT Hash Sum mismatch.
 
           sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo rm -f /etc/apt/sources.list.d/google-chrome.sources
@@ -124,7 +132,7 @@ jobs:
 
 
       # ============================================================
-      # SYNC ORANGEFOX
+      # SYNC ORANGEFOX 12.1
       # ============================================================
 
       - name: Sync OrangeFox 12.1
@@ -132,9 +140,9 @@ jobs:
         run: |
           set -e
 
-          mkdir -p "$GITHUB_WORKSPACE/fox_12.1"
-
           cd "$GITHUB_WORKSPACE"
+
+          mkdir -p "$GITHUB_WORKSPACE/fox_12.1"
 
           git clone \
             --depth=1 \
@@ -169,7 +177,8 @@ jobs:
             https://github.com/DVWorkspaces/device_xiaomi_tanzanite_recovery.git \
             device/xiaomi/tanzanite
 
-          echo "===== DEVICE TREE ====="
+          echo "===== TANZANITE DEVICE TREE ====="
+
           ls -la device/xiaomi/tanzanite
 
 
@@ -184,10 +193,22 @@ jobs:
 
           STOCK="$GITHUB_WORKSPACE/stock/vendor_boot.img"
 
-          echo "===== TARGET ROM ====="
+          echo "=========================================="
+          echo "TARGET DEVICE"
+          echo "=========================================="
+
+          echo "Redmi Note 14 4G"
+          echo "Codename: tanzanite"
+
+          echo "=========================================="
+          echo "TARGET ROM"
+          echo "=========================================="
+
           echo "OS3.0.302.0.WOGMIXM"
 
-          echo "===== STOCK VENDOR_BOOT ====="
+          echo "=========================================="
+          echo "STOCK VENDOR_BOOT"
+          echo "=========================================="
 
           test -f "$STOCK"
 
@@ -197,19 +218,21 @@ jobs:
 
           STOCK_SIZE=$(stat -c%s "$STOCK")
 
-          echo "Stock size: $STOCK_SIZE bytes"
+          echo "Size: $STOCK_SIZE bytes"
 
-          # Stock vendor_boot must be 64 MiB.
+          # 64 MiB
           test "$STOCK_SIZE" -eq 67108864
 
           STOCK_SHA=$(sha256sum "$STOCK" | awk '{print $1}')
 
-          echo "Stock SHA256: $STOCK_SHA"
+          echo "SHA256: $STOCK_SHA"
 
           test "$STOCK_SHA" = \
           "9cbb1b2bc1278e46a5cb99b30925bc607d3ecea40e8e61ccf42f4c2dac225d26"
 
-          echo "Stock vendor_boot SHA256: OK"
+          echo "=========================================="
+          echo "STOCK VENDOR_BOOT VERIFIED"
+          echo "=========================================="
 
 
       # ============================================================
@@ -224,20 +247,22 @@ jobs:
 
           STOCK="$GITHUB_WORKSPACE/stock/vendor_boot.img"
 
-          echo "===== BUILD TARGET ====="
-          echo "Redmi Note 14 4G"
-          echo "Codename: tanzanite"
-          echo "ROM: OS3.0.302.0.WOGMIXM"
+          echo "=========================================="
+          echo "ORANGEFOX BUILD"
+          echo "=========================================="
 
-          echo "===== ORANGEFOX VARIABLES ====="
+          echo "Device: tanzanite"
+          echo "ROM: OS3.0.302.0.WOGMIXM"
+          echo "Android: 16"
+          echo "OrangeFox: 12.1"
+
+          echo "=========================================="
+          echo "ORANGEFOX VARIABLES"
+          echo "=========================================="
 
           export FOX_VENDOR_BOOT_RECOVERY=1
           export FOX_AB_DEVICE=1
           export FOX_VIRTUAL_AB_DEVICE=1
-
-          # Use the exact stock vendor_boot from
-          # OS3.0.302.0.WOGMIXM as the reference image.
-
           export FOX_REFERENCE_VENDOR_BOOT_IMAGE="$STOCK"
 
           echo "FOX_VENDOR_BOOT_RECOVERY=$FOX_VENDOR_BOOT_RECOVERY"
@@ -245,29 +270,34 @@ jobs:
           echo "FOX_VIRTUAL_AB_DEVICE=$FOX_VIRTUAL_AB_DEVICE"
           echo "FOX_REFERENCE_VENDOR_BOOT_IMAGE=$FOX_REFERENCE_VENDOR_BOOT_IMAGE"
 
-          echo "===== STOCK SHA256 ====="
-          sha256sum "$STOCK"
-
-          echo "===== LOADING ENVIRONMENT ====="
+          echo "=========================================="
+          echo "LOADING BUILD ENVIRONMENT"
+          echo "=========================================="
 
           source build/envsetup.sh || true
 
-          echo "===== SELECTING TANZANITE ====="
+          echo "=========================================="
+          echo "SELECTING TANZANITE"
+          echo "=========================================="
 
           lunch twrp_tanzanite-eng
 
-          echo "===== BUILDING VENDOR_BOOT ====="
+          echo "=========================================="
+          echo "BUILDING VENDOR_BOOT"
+          echo "=========================================="
 
           mka vendorbootimage -j"$(nproc --all)"
 
-          echo "===== BUILD COMPLETE ====="
+          echo "=========================================="
+          echo "ORANGEFOX BUILD COMPLETE"
+          echo "=========================================="
 
 
       # ============================================================
-      # VERIFY BUILD 18
+      # VERIFY BUILD
       # ============================================================
 
-      - name: Verify Build 18 image
+      - name: Verify OrangeFox image
         working-directory: fox_12.1
         shell: bash
         run: |
@@ -275,10 +305,9 @@ jobs:
 
           PRODUCT="$GITHUB_WORKSPACE/fox_12.1/out/target/product/tanzanite"
 
-          echo "===== TARGET ROM ====="
-          echo "OS3.0.302.0.WOGMIXM"
-
-          echo "===== ORANGEFOX IMAGE ====="
+          echo "=========================================="
+          echo "BUILD VERIFICATION"
+          echo "=========================================="
 
           FOX_IMAGE=$(find "$PRODUCT" \
             -maxdepth 1 \
@@ -288,15 +317,23 @@ jobs:
 
           test -n "$FOX_IMAGE"
 
+          echo "===== ORANGEFOX IMAGE ====="
+
           ls -lh "$FOX_IMAGE"
 
-          echo "===== ORANGEFOX SHA256 ====="
+          echo "===== SHA256 ====="
+
           sha256sum "$FOX_IMAGE"
 
           echo "===== FILE TYPE ====="
+
           file "$FOX_IMAGE"
 
-          echo "===== VENDOR BOOT OUTPUT ====="
+          echo "===== HEADER ====="
+
+          xxd -l 32 "$FOX_IMAGE"
+
+          echo "===== GENERATED VENDOR_BOOT ====="
 
           test -f "$PRODUCT/vendor_boot.img"
 
@@ -304,11 +341,7 @@ jobs:
 
           sha256sum "$PRODUCT/vendor_boot.img"
 
-          echo "===== VENDOR_BOOT HEADER ====="
-
-          xxd -l 32 "$FOX_IMAGE"
-
-          echo "===== VERIFYING STOCK REFERENCE AGAIN ====="
+          echo "===== STOCK REFERENCE ====="
 
           STOCK="$GITHUB_WORKSPACE/stock/vendor_boot.img"
 
@@ -319,9 +352,9 @@ jobs:
           test "$STOCK_SHA" = \
           "9cbb1b2bc1278e46a5cb99b30925bc607d3ecea40e8e61ccf42f4c2dac225d26"
 
-          echo "Stock vendor_boot SHA256: OK"
-
-          echo "===== BUILD 18 VERIFICATION PASSED ====="
+          echo "=========================================="
+          echo "BUILD VERIFICATION PASSED"
+          echo "=========================================="
 
 
       # ============================================================
@@ -335,8 +368,13 @@ jobs:
           set -e
 
           PRODUCT="$GITHUB_WORKSPACE/fox_12.1/out/target/product/tanzanite"
+          OUT="$GITHUB_WORKSPACE/orangefox-artifacts"
 
-          echo "===== SEARCHING FOR VENDOR RAMDISK ====="
+          mkdir -p "$OUT"
+
+          echo "=========================================="
+          echo "SEARCHING FOR RAMDISK"
+          echo "=========================================="
 
           find "$PRODUCT" \
             -type f \
@@ -345,59 +383,125 @@ jobs:
               -o \
               -name "vendor_ramdisk_recovery.cpio" \
               -o \
+              -name "vendor_ramdisk.cpio" \
+              -o \
               -name "ramdisk.img" \
             \) \
             -print
 
 
-          # --------------------------------------------------------
-          # vendor_ramdisk.cpio.lz4
-          # --------------------------------------------------------
+          echo "=========================================="
+          echo "VENDOR RAMDISK"
+          echo "=========================================="
 
           if [ -f "$PRODUCT/vendor_boot_intermediates/vendor_ramdisk.cpio.lz4" ]; then
 
-            echo "Found vendor_ramdisk.cpio.lz4"
-
             cp \
               "$PRODUCT/vendor_boot_intermediates/vendor_ramdisk.cpio.lz4" \
-              "$PRODUCT/vendor_ramdisk.cpio.lz4"
+              "$OUT/vendor_ramdisk.cpio.lz4"
+
+            echo "vendor_ramdisk.cpio.lz4 found."
 
             lz4 -d \
-              "$PRODUCT/vendor_ramdisk.cpio.lz4" \
-              "$PRODUCT/vendor_ramdisk.cpio"
+              "$OUT/vendor_ramdisk.cpio.lz4" \
+              "$OUT/vendor_ramdisk.cpio"
 
-            echo "Vendor ramdisk extracted."
+            echo "vendor_ramdisk.cpio created."
 
             ls -lh \
-              "$PRODUCT/vendor_ramdisk.cpio.lz4" \
-              "$PRODUCT/vendor_ramdisk.cpio"
+              "$OUT/vendor_ramdisk.cpio.lz4" \
+              "$OUT/vendor_ramdisk.cpio"
+
+          else
+
+            echo "WARNING: vendor_ramdisk.cpio.lz4 not found."
 
           fi
 
 
-          # --------------------------------------------------------
-          # List ramdisk contents
-          # --------------------------------------------------------
+          echo "=========================================="
+          echo "RECOVERY RAMDISK"
+          echo "=========================================="
 
-          if [ -f "$PRODUCT/vendor_ramdisk.cpio" ]; then
+          if [ -f "$PRODUCT/vendor_ramdisk_recovery.cpio" ]; then
 
-            echo "===== RAMDISK CONTENTS ====="
+            cp \
+              "$PRODUCT/vendor_ramdisk_recovery.cpio" \
+              "$OUT/vendor_ramdisk_recovery.cpio"
 
-            mkdir -p "$PRODUCT/ramdisk_contents"
+            echo "vendor_ramdisk_recovery.cpio found."
 
-            cd "$PRODUCT/ramdisk_contents"
+          else
 
-            cpio -itv \
-              < "$PRODUCT/vendor_ramdisk.cpio" \
-              > "$PRODUCT/ramdisk_contents.txt"
+            echo "vendor_ramdisk_recovery.cpio not generated."
 
-            echo "Ramdisk contents saved."
+          fi
+
+
+          echo "=========================================="
+          echo "RAMDISK IMAGE"
+          echo "=========================================="
+
+          if [ -f "$PRODUCT/ramdisk.img" ]; then
+
+            cp \
+              "$PRODUCT/ramdisk.img" \
+              "$OUT/ramdisk.img"
+
+            echo "ramdisk.img found."
 
           fi
 
 
       # ============================================================
-      # PACKAGE ARTIFACTS
+      # INSPECT RAMDISK
+      # ============================================================
+
+      - name: Inspect vendor ramdisk
+        shell: bash
+        run: |
+          set -e
+
+          OUT="$GITHUB_WORKSPACE/orangefox-artifacts"
+
+          echo "=========================================="
+          echo "RAMDISK INSPECTION"
+          echo "=========================================="
+
+          if [ -f "$OUT/vendor_ramdisk.cpio" ]; then
+
+            mkdir -p "$OUT/ramdisk_contents"
+
+            cd "$OUT/ramdisk_contents"
+
+            cpio -itv \
+              < "$OUT/vendor_ramdisk.cpio" \
+              > "$OUT/ramdisk_contents.txt"
+
+            echo "=========================================="
+            echo "RECOVERY-RELATED FILES"
+            echo "=========================================="
+
+            grep -Ei \
+              'recovery|fox|magisk|resetprop|fstab|init\.' \
+              "$OUT/ramdisk_contents.txt" \
+              || true
+
+            echo "=========================================="
+            echo "RAMDISK CONTENTS SAVED"
+            echo "=========================================="
+
+            wc -l "$OUT/ramdisk_contents.txt"
+
+          else
+
+            echo "No vendor_ramdisk.cpio available."
+
+          fi
+
+
+      # ============================================================
+      # PACKAGE BUILD ARTIFACTS
       # ============================================================
 
       - name: Package OrangeFox artifacts
@@ -407,10 +511,13 @@ jobs:
           set -e
 
           PRODUCT="$GITHUB_WORKSPACE/fox_12.1/out/target/product/tanzanite"
+          OUT="$GITHUB_WORKSPACE/orangefox-artifacts"
 
-          mkdir -p "$GITHUB_WORKSPACE/orangefox-artifacts"
+          mkdir -p "$OUT"
 
-          echo "===== COPYING ARTIFACTS ====="
+          echo "=========================================="
+          echo "COPYING BUILD IMAGES"
+          echo "=========================================="
 
           find "$PRODUCT" \
             -maxdepth 1 \
@@ -419,20 +526,18 @@ jobs:
               -name "OrangeFox-*.img" \
               -o \
               -name "vendor_boot.img" \
-              -o \
-              -name "ramdisk.img" \
-              -o \
-              -name "vendor_ramdisk.cpio.lz4" \
-              -o \
-              -name "vendor_ramdisk.cpio" \
-              -o \
-              -name "ramdisk_contents.txt" \
             \) \
-            -exec cp {} "$GITHUB_WORKSPACE/orangefox-artifacts/" \;
+            -exec cp {} "$OUT/" \;
 
-          echo "===== ARTIFACTS ====="
 
-          ls -lh "$GITHUB_WORKSPACE/orangefox-artifacts"
+          echo "=========================================="
+          echo "FINAL ARTIFACTS"
+          echo "=========================================="
+
+          find "$OUT" \
+            -maxdepth 2 \
+            -type f \
+            -printf '%p %s bytes\n'
 
 
       # ============================================================
@@ -442,7 +547,7 @@ jobs:
       - name: Upload OrangeFox artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: OrangeFox-tanzanite-OS3.0.302.0.WOGMIXM
+          name: OrangeFox-tanzanite-OS3.0.302.0-WOGMIXM-inspection
           path: orangefox-artifacts/
           if-no-files-found: error
           retention-days: 7
