@@ -214,6 +214,24 @@ jobs:
           set -e
 
           PRODUCT="$GITHUB_WORKSPACE/fox_12.1/out/target/product/tanzanite"
+          STOCK="$GITHUB_WORKSPACE/stock/vendor_boot.img"
+
+          echo "===== TARGET ROM ====="
+          echo "OS3.0.302.0.WOGMIXM"
+
+          echo "===== STOCK VENDOR_BOOT ====="
+          test -f "$STOCK"
+          ls -lh "$STOCK"
+
+          STOCK_SHA=$(sha256sum "$STOCK" | awk '{print $1}')
+          echo "Stock SHA256: $STOCK_SHA"
+
+          test "$STOCK_SHA" = \
+          "9cbb1b2bc1278e46a5cb99b30925bc607d3ecea40e8e61ccf42f4c2dac225d26"
+
+          echo "Stock vendor_boot SHA256: OK"
+
+          echo "===== ORANGEFOX IMAGE ====="
 
           FOX_IMAGE=$(find "$PRODUCT" \
             -maxdepth 1 \
@@ -223,19 +241,23 @@ jobs:
 
           test -n "$FOX_IMAGE"
 
-          echo "===== ORANGEFOX IMAGE ====="
           ls -lh "$FOX_IMAGE"
 
-          echo "===== SHA256 ====="
+          echo "===== ORANGEFOX SHA256 ====="
           sha256sum "$FOX_IMAGE"
 
           echo "===== FILE TYPE ====="
           file "$FOX_IMAGE"
 
-          echo "===== VENDOR BOOT ====="
+          echo "===== VENDOR BOOT OUTPUT ====="
+          test -f "$PRODUCT/vendor_boot.img"
           ls -lh "$PRODUCT/vendor_boot.img"
           sha256sum "$PRODUCT/vendor_boot.img"
-          
+
+          echo "===== HEADER CHECK ====="
+          xxd -l 32 "$FOX_IMAGE"
+
+          echo "===== BUILD 18 VERIFICATION PASSED ====="
       # ---------------------------------------------------------
       # Inspect build output
       # ---------------------------------------------------------
