@@ -159,7 +159,16 @@ jobs:
 
           echo "===== Device tree ====="
           ls -la device/xiaomi/tanzanite
+           
+      - name: Add stock vendor_boot reference
+        run: |
+          set -e
 
+          mkdir -p "$GITHUB_WORKSPACE/fox_12.1/device/xiaomi/tanzanite/prebuilt"
+
+          cp "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
+             "$GITHUB_WORKSPACE/fox_12.1/device/xiaomi/tanzanite/prebuilt/stock-vendor_boot.img"
+             
       # ---------------------------------------------------------
       # Build OrangeFox
       # ---------------------------------------------------------
