@@ -1,4 +1,4 @@
-name: OrangeFox Recovery - Redmi Note 14 4G
+name: OrangeFox Recovery Build
 
 on:
   workflow_dispatch:
@@ -9,80 +9,74 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 360
 
     steps:
-
-      # ==========================================
-      # CHECKOUT
-      # ==========================================
+      # ------------------------------------------------------------
+      # Checkout this repository
+      # ------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
-      # ==========================================
-      # FREE DISK SPACE
-      # ==========================================
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: true
-          android: false
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: false
-
-
-      # ==========================================
-      # JAVA 11
-      # ==========================================
-      - name: Setup Java 11
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "11"
-
-
-      # ==========================================
-      # DEPENDENCIES
-      # ==========================================
+      # ------------------------------------------------------------
+      # Install dependencies
+      # ------------------------------------------------------------
       - name: Install dependencies
         run: |
+          set -e
+
           sudo apt-get update
 
           sudo apt-get install -y \
-            git-core \
-            gnupg \
-            flex \
+            adb \
+            aria2 \
+            bc \
             bison \
             build-essential \
-            zip \
+            ccache \
+            clang \
             curl \
-            zlib1g-dev \
-            libc6-dev-i386 \
+            flex \
+            g++-multilib \
+            gcc-multilib \
+            git \
+            gnupg \
+            gperf \
+            imagemagick \
+            lib32ncurses5-dev \
+            lib32readline-dev \
+            lib32z1-dev \
+            libelf-dev \
+            liblz4-tool \
+            libncurses5 \
             libncurses5-dev \
-            x11proto-core-dev \
-            libx11-dev \
-            libreadline-dev \
-            libgl1-mesa-dev \
-            libxml2-utils \
-            xsltproc \
-            unzip \
-            python3 \
-            python3-pip \
-            bc \
-            cpio \
-            rsync \
-            lz4 \
             libssl-dev \
-            libelf-dev
+            libxml2-utils \
+            lz4 \
+            lzop \
+            openjdk-11-jdk \
+            pngcrush \
+            rsync \
+            schedtool \
+            squashfs-tools \
+            unzip \
+            xsltproc \
+            zip \
+            zlib1g-dev
 
+      # ------------------------------------------------------------
+      # Java
+      # ------------------------------------------------------------
+      - name: Configure Java
+        run: |
+          set -e
 
-      # ==========================================
-      # CREATE 16GB SWAP
-      # ==========================================
+          echo "JAVA_HOME=$JAVA_HOME"
+
+          java -version
+
+      # ------------------------------------------------------------
+      # Create extra swap
+      # ------------------------------------------------------------
       - name: Create swap
         run: |
           set -e
@@ -99,12 +93,13 @@ jobs:
 
           echo "===== SWAP ====="
           swapon --show
+
+          echo "===== MEMORY ====="
           free -h
 
-
-      # ==========================================
-      # INSTALL REPO TOOL
-      # ==========================================
+      # ------------------------------------------------------------
+      # Install repo
+      # ------------------------------------------------------------
       - name: Install repo tool
         run: |
           set -e
@@ -117,347 +112,314 @@ jobs:
 
           repo --version
 
-
-      # ==========================================
-      # SYNC ORANGEFOX
-      # ==========================================
-      - name: Sync OrangeFox
+      # ------------------------------------------------------------
+      # Sync OrangeFox fox_12.1
+      # ------------------------------------------------------------
+      - name: Sync OrangeFox sources
         run: |
           set -e
 
-          git clone --depth=1 \
-            https://gitlab.com/OrangeFox/sync.git \
-            fox_sync
+          mkdir -p "$GITHUB_WORKSPACE/fox_12.1"
 
-          cd fox_sync
+          cd "$GITHUB_WORKSPACE/fox_12.1"
 
-          bash orangefox_sync.sh \
-            --branch 12.1 \
-            --path "$GITHUB_WORKSPACE/fox_12.1"
+          echo "===== Initializing OrangeFox ====="
 
+          repo init \
+            --depth=1 \
+            -u https://gitlab.com/OrangeFox/sync.git \
+            -b fox_12.1
 
-      # ==========================================
-      # CLONE TANZANITE DEVICE TREE
-      # ==========================================
-      - name: Clone Tanzanite recovery tree
+          echo "===== Syncing OrangeFox ====="
+
+          repo sync \
+            -c \
+            --no-tags \
+            --no-clone-bundle \
+            --force-sync \
+            -j"$(nproc --all)"
+
+      # ------------------------------------------------------------
+      # Clone Redmi Note 14 4G / Tanzanite tree
+      # ------------------------------------------------------------
+      - name: Clone Tanzanite device tree
+        working-directory: fox_12.1
         run: |
           set -e
 
-          mkdir -p fox_12.1/device/xiaomi
+          mkdir -p device/xiaomi
 
-          git clone --depth=1 \
-            -b fox_12.1 \
+          git clone \
+            --depth=1 \
+            --branch fox_12.1 \
             https://github.com/DVWorkspaces/device_xiaomi_tanzanite_recovery.git \
-            fox_12.1/device/xiaomi/tanzanite
+            device/xiaomi/tanzanite
 
-
-      # ==========================================
-      # VERIFY DEVICE TREE
-      # ==========================================
-      - name: Verify device tree
+      # ------------------------------------------------------------
+      # Verify device tree
+      # ------------------------------------------------------------
+      - name: Verify Tanzanite tree
+        working-directory: fox_12.1
         run: |
           set -e
 
-          test -f \
-            fox_12.1/device/xiaomi/tanzanite/fox_tanzanite.mk
+          echo "===== DEVICE TREE ====="
 
-          test -f \
-            fox_12.1/device/xiaomi/tanzanite/twrp_tanzanite.mk
+          test -d device/xiaomi/tanzanite
+          test -f device/xiaomi/tanzanite/BoardConfig.mk
+          test -f device/xiaomi/tanzanite/device.mk
 
-          test -f \
-            fox_12.1/device/xiaomi/tanzanite/BoardConfig.mk
-
-          test -f \
-            fox_12.1/device/xiaomi/tanzanite/prebuilt/dtb
-
-          echo "======================================"
-          echo "Tanzanite device tree: OK"
-          echo "======================================"
-
-
-      # ==========================================
-      # SHOW DEVICE CONFIGURATION
-      # ==========================================
-      - name: Show device configuration
-        run: |
-          echo "======================================"
-          echo "BOARD CONFIGURATION"
-          echo "======================================"
-
+          echo "===== BOARD CONFIG ====="
           grep -E \
             'BOARD_BOOT_HEADER_VERSION|BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE|BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT|BOARD_EXCLUDE_KERNEL_FROM_RECOVERY_IMAGE|BOARD_USES_GENERIC_KERNEL_IMAGE' \
-            fox_12.1/device/xiaomi/tanzanite/BoardConfig.mk \
-            || true
+            device/xiaomi/tanzanite/BoardConfig.mk || true
 
-          echo ""
-          echo "======================================"
-          echo "DEVICE TREE FILES"
-          echo "======================================"
+      # ------------------------------------------------------------
+      # Load OrangeFox build environment
+      # ------------------------------------------------------------
+      - name: Configure OrangeFox environment
+        working-directory: fox_12.1
+        shell: bash
+        run: |
+          set -e
 
-          ls -lah \
-            fox_12.1/device/xiaomi/tanzanite/
+          echo "===== Loading OrangeFox environment ====="
 
+          source build/envsetup.sh || true
 
-      # ==========================================
-      # BUILD ORANGEFOX
-      # ==========================================
+          echo "===== ENVSETUP FINISHED ====="
+
+          # --------------------------------------------------------
+          # Tanzanite is:
+          # - Android boot header v4
+          # - A/B
+          # - Virtual A/B
+          # - vendor_boot-as-recovery
+          # --------------------------------------------------------
+
+          export FOX_VENDOR_BOOT_RECOVERY=1
+          export FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL=1
+
+          export FOX_AB_DEVICE=1
+          export FOX_VIRTUAL_AB_DEVICE=1
+
+          echo "===== ORANGEFOX VARIABLES ====="
+
+          echo "FOX_VENDOR_BOOT_RECOVERY=$FOX_VENDOR_BOOT_RECOVERY"
+          echo "FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL=$FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL"
+          echo "FOX_AB_DEVICE=$FOX_AB_DEVICE"
+          echo "FOX_VIRTUAL_AB_DEVICE=$FOX_VIRTUAL_AB_DEVICE"
+
+          # Save them for the next step too.
+          {
+            echo "FOX_VENDOR_BOOT_RECOVERY=1"
+            echo "FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL=1"
+            echo "FOX_AB_DEVICE=1"
+            echo "FOX_VIRTUAL_AB_DEVICE=1"
+          } >> "$GITHUB_ENV"
+
+      # ------------------------------------------------------------
+      # Build OrangeFox vendor_boot recovery
+      # ------------------------------------------------------------
       - name: Build OrangeFox
         working-directory: fox_12.1
         shell: bash
         run: |
           set -e
 
-          echo "======================================"
-          echo "LOADING ORANGEFOX ENVIRONMENT"
-          echo "======================================"
+          echo "===== Loading OrangeFox environment ====="
 
           source build/envsetup.sh || true
 
-
-          # ======================================
-          # VENDOR_BOOT RECOVERY
-          # Android Boot Header Version 4
-          # ======================================
-
-          export FOX_VENDOR_BOOT_RECOVERY=1
-
-          echo ""
-          echo "FOX_VENDOR_BOOT_RECOVERY=$FOX_VENDOR_BOOT_RECOVERY"
-
-
-          # ======================================
-          # A/B CONFIGURATION
-          # ======================================
-
-          export FOX_AB_DEVICE=1
-          export FOX_VIRTUAL_AB_DEVICE=1
-
-          echo "FOX_AB_DEVICE=$FOX_AB_DEVICE"
-          echo "FOX_VIRTUAL_AB_DEVICE=$FOX_VIRTUAL_AB_DEVICE"
-
-
-          # ======================================
-          # SELECT TANZANITE
-          # ======================================
-
-          echo ""
-          echo "======================================"
-          echo "SELECTING TANZANITE"
-          echo "======================================"
+          echo "===== Selecting Tanzanite ====="
 
           lunch twrp_tanzanite-eng
 
+          echo "===== Checking variables ====="
 
-          # ======================================
-          # BUILD VENDOR_BOOT
-          # ======================================
+          export FOX_VENDOR_BOOT_RECOVERY=1
+          export FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL=1
+          export FOX_AB_DEVICE=1
+          export FOX_VIRTUAL_AB_DEVICE=1
 
-          echo ""
-          echo "======================================"
-          echo "BUILDING ORANGEFOX"
-          echo "======================================"
+          echo "FOX_VENDOR_BOOT_RECOVERY=$FOX_VENDOR_BOOT_RECOVERY"
+          echo "FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL=$FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL"
+
+          echo "===== Starting vendor_boot build ====="
 
           mka vendorbootimage -j"$(nproc --all)"
 
-
-          echo ""
-          echo "======================================"
-          echo "BUILD FINISHED"
-          echo "======================================"
-
-
-      # ==========================================
-      # INSPECT BUILD OUTPUT
-      # ==========================================
+      # ------------------------------------------------------------
+      # Inspect EVERYTHING generated
+      # ------------------------------------------------------------
       - name: Inspect build output
-        if: always()
+        working-directory: fox_12.1
         shell: bash
         run: |
-
-          OUT="fox_12.1/out/target/product/tanzanite"
-
-          echo "======================================"
-          echo "PRODUCT OUTPUT"
-          echo "======================================"
-
-          if [ ! -d "$OUT" ]; then
-            echo "Product output directory does not exist."
-            exit 0
-          fi
-
-
-          echo ""
-          echo "======================================"
-          echo "ALL IMG FILES"
-          echo "======================================"
-
-          find "$OUT" \
-            -type f \
-            -name "*.img" \
-            -printf '%p (%s bytes)\n' \
-            2>/dev/null \
-            || true
-
-
-          echo ""
-          echo "======================================"
-          echo "ALL CPIO FILES"
-          echo "======================================"
-
-          find "$OUT" \
-            -type f \
-            -name "*.cpio" \
-            -printf '%p (%s bytes)\n' \
-            2>/dev/null \
-            || true
-
-
-          echo ""
-          echo "======================================"
-          echo "ALL ORANGEFOX ZIP FILES"
-          echo "======================================"
-
-          find "$OUT" \
-            -type f \
-            -iname "*orangefox*.zip" \
-            -printf '%p (%s bytes)\n' \
-            2>/dev/null \
-            || true
-
-
-          echo ""
-          echo "======================================"
-          echo "RECOVERY DIRECTORY"
-          echo "======================================"
-
-          find "$OUT/recovery" \
-            -maxdepth 2 \
-            -type f \
-            -printf '%p (%s bytes)\n' \
-            2>/dev/null \
-            || true
-
-
-      # ==========================================
-      # PACKAGE BUILD FILES
-      # ==========================================
-      - name: Package OrangeFox
-        shell: bash
-        run: |
-
           set -e
 
-          OUT="fox_12.1/out/target/product/tanzanite"
+          OUT="out/target/product/tanzanite"
 
-          mkdir -p release/orangefox
+          echo "=================================================="
+          echo "ALL TANZANITE OUTPUT"
+          echo "=================================================="
 
+          find "$OUT" -type f -printf '%p | %s bytes\n' | sort
 
-          echo "======================================"
-          echo "COLLECTING ORANGEFOX FILES"
-          echo "======================================"
+          echo
+          echo "=================================================="
+          echo "RECOVERY / VENDOR BOOT FILES"
+          echo "=================================================="
 
+          find "$OUT" -type f \
+            \( \
+              -name "*.img" \
+              -o -name "*.cpio" \
+              -o -name "*.zip" \
+              -o -name "*.md5" \
+            \) \
+            -printf '%p | %s bytes\n' | sort
 
-          # --------------------------------------
-          # Collect CPIO files
-          # --------------------------------------
+          echo
+          echo "=================================================="
+          echo "SEARCHING FOR vendor_ramdisk_recovery.cpio"
+          echo "=================================================="
 
-          find "$OUT" \
-            -type f \
-            -name "*.cpio" \
-            -exec cp {} release/orangefox/ \;
+          find "$OUT" -type f \
+            -name "vendor_ramdisk_recovery.cpio" \
+            -printf '%p | %s bytes\n' \
+            || true
 
+          echo
+          echo "=================================================="
+          echo "SEARCHING FOR ORANGEFOX ZIP"
+          echo "=================================================="
 
-          # --------------------------------------
-          # Collect IMG files
-          # --------------------------------------
+          find "$OUT" -type f \
+            -iname "*OrangeFox*.zip" \
+            -printf '%p | %s bytes\n' \
+            || true
 
-          find "$OUT" \
-            -type f \
-            -name "*.img" \
-            -exec cp {} release/orangefox/ \;
+          # --------------------------------------------------------
+          # Build #15 MUST contain the recovery CPIO.
+          # If it doesn't, stop the workflow rather than producing
+          # another misleading ZIP.
+          # --------------------------------------------------------
 
+          CPIO="$(find "$OUT" -type f \
+            -name "vendor_ramdisk_recovery.cpio" \
+            -print -quit)"
 
-          echo ""
-          echo "======================================"
-          echo "PACKAGE CONTENTS"
-          echo "======================================"
-
-          ls -lah release/orangefox
-
-
-          # --------------------------------------
-          # Make sure something was produced
-          # --------------------------------------
-
-          if [ -z "$(find release/orangefox \
-            -type f \
-            -print \
-            -quit)" ]; then
-
-            echo ""
-            echo "ERROR: No OrangeFox build files were found."
+          if [ -z "$CPIO" ]; then
+            echo
+            echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            echo "ERROR: vendor_ramdisk_recovery.cpio was NOT generated."
+            echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            echo
+            echo "The build is NOT ready to flash."
             exit 1
-
           fi
 
+          echo
+          echo "===== FOUND RECOVERY CPIO ====="
+          echo "$CPIO"
+          ls -lh "$CPIO"
 
-          # --------------------------------------
-          # Create ZIP
-          # --------------------------------------
+      # ------------------------------------------------------------
+      # Package verified artifacts
+      # ------------------------------------------------------------
+      - name: Package OrangeFox
+        working-directory: fox_12.1
+        shell: bash
+        run: |
+          set -e
 
-          ZIP_NAME="OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip"
+          OUT="out/target/product/tanzanite"
+          PKG="$GITHUB_WORKSPACE/OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}"
 
-          echo ""
-          echo "======================================"
-          echo "CREATING ZIP"
-          echo "======================================"
+          rm -rf "$PKG"
+          mkdir -p "$PKG"
 
-          cd release/orangefox
+          echo "===== Copying verified recovery ramdisk ====="
 
-          zip -9 \
-            "../../${ZIP_NAME}" \
-            ./*
+          CPIO="$(find "$OUT" -type f \
+            -name "vendor_ramdisk_recovery.cpio" \
+            -print -quit)"
 
-          cd ../..
+          cp "$CPIO" "$PKG/vendor_ramdisk_recovery.cpio"
 
+          echo "===== Copying generated OrangeFox ZIPs ====="
 
-          echo ""
-          echo "======================================"
-          echo "FINAL ZIP"
-          echo "======================================"
+          find "$OUT" -type f \
+            -iname "*OrangeFox*.zip" \
+            -exec cp {} "$PKG/" \; \
+            || true
+
+          echo "===== Copying diagnostic images ====="
+
+          find "$OUT" -maxdepth 1 -type f \
+            \( \
+              -name "vendor_boot.img" \
+              -o -name "recovery.img" \
+              -o -name "OrangeFox*.img" \
+              -o -name "ramdisk.img" \
+            \) \
+            -exec cp {} "$PKG/" \; \
+            || true
+
+          echo "===== PACKAGE CONTENTS ====="
+
+          find "$PKG" -type f \
+            -printf '%f | %s bytes\n' \
+            | sort
+
+          echo "===== Creating ZIP ====="
+
+          cd "$PKG"
+
+          zip -9 -r \
+            "$GITHUB_WORKSPACE/OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip" \
+            .
+
+          echo
+          echo "===== FINAL ZIP ====="
 
           ls -lh \
-            "${ZIP_NAME}"
+            "$GITHUB_WORKSPACE/OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip"
 
+      # ------------------------------------------------------------
+      # SHA256
+      # ------------------------------------------------------------
+      - name: Generate SHA256
+        run: |
+          set -e
 
-          echo ""
-          echo "======================================"
-          echo "ZIP CONTENTS"
-          echo "======================================"
+          sha256sum \
+            "OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.zip" \
+            | tee "OrangeFox-tanzanite-${GITHUB_RUN_NUMBER}.sha256"
 
-          unzip -l \
-            "${ZIP_NAME}"
-
-
-      # ==========================================
-      # UPLOAD ARTIFACT
-      # ==========================================
+      # ------------------------------------------------------------
+      # Upload artifact
+      # ------------------------------------------------------------
       - name: Upload OrangeFox ZIP
         uses: actions/upload-artifact@v4
         with:
           name: OrangeFox-tanzanite-${{ github.run_number }}
-          path: OrangeFox-tanzanite-${{ github.run_number }}.zip
+          path: |
+            OrangeFox-tanzanite-${{ github.run_number }}.zip
+            OrangeFox-tanzanite-${{ github.run_number }}.sha256
           if-no-files-found: error
-          retention-days: 90
 
-
-      # ==========================================
-      # CREATE GITHUB RELEASE
-      # ==========================================
+      # ------------------------------------------------------------
+      # Create GitHub Release
+      # ------------------------------------------------------------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: orangefox-tanzanite-${{ github.run_number }}
+          tag_name: orangefox-tanzanite-build-${{ github.run_number }}
           name: OrangeFox Tanzanite Build ${{ github.run_number }}
           generate_release_notes: true
-          files: OrangeFox-tanzanite-${{ github.run_number }}.zip
+          files: |
+            OrangeFox-tanzanite-${{ github.run_number }}.zip
+            OrangeFox-tanzanite-${{ github.run_number }}.sha256
+            ```
