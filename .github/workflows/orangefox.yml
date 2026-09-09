@@ -207,6 +207,35 @@ jobs:
 
           echo "===== BUILD COMPLETE ====="
 
+      - name: Verify Build 18 image
+        working-directory: fox_12.1
+        shell: bash
+        run: |
+          set -e
+
+          PRODUCT="$GITHUB_WORKSPACE/fox_12.1/out/target/product/tanzanite"
+
+          FOX_IMAGE=$(find "$PRODUCT" \
+            -maxdepth 1 \
+            -type f \
+            -name "OrangeFox-*.img" \
+            | head -n 1)
+
+          test -n "$FOX_IMAGE"
+
+          echo "===== ORANGEFOX IMAGE ====="
+          ls -lh "$FOX_IMAGE"
+
+          echo "===== SHA256 ====="
+          sha256sum "$FOX_IMAGE"
+
+          echo "===== FILE TYPE ====="
+          file "$FOX_IMAGE"
+
+          echo "===== VENDOR BOOT ====="
+          ls -lh "$PRODUCT/vendor_boot.img"
+          sha256sum "$PRODUCT/vendor_boot.img"
+          
       # ---------------------------------------------------------
       # Inspect build output
       # ---------------------------------------------------------
