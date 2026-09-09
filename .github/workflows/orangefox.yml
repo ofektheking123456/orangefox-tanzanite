@@ -119,26 +119,28 @@ jobs:
         run: |
           set -e
 
-          mkdir -p "$GITHUB_WORKSPACE/fox_12.1"
+          cd "$GITHUB_WORKSPACE"
 
-          cd "$GITHUB_WORKSPACE/fox_12.1"
+          echo "===== Cloning OrangeFox sync tool ====="
 
-          echo "===== Initializing OrangeFox ====="
+          git clone --depth=1 \
+            https://gitlab.com/OrangeFox/sync.git \
+            OrangeFox_sync
 
-          repo init \
-            --depth=1 \
-            -u https://gitlab.com/OrangeFox/sync.git \
-            -b fox_12.1
+          echo "===== Running OrangeFox 12.1 sync ====="
 
-          echo "===== Syncing OrangeFox ====="
+          cd "$GITHUB_WORKSPACE/OrangeFox_sync"
 
-          repo sync \
-            -c \
-            --no-tags \
-            --no-clone-bundle \
-            --force-sync \
-            -j"$(nproc --all)"
+          chmod +x orangefox_sync.sh
 
+          ./orangefox_sync.sh \
+            --branch 12.1 \
+            --path "$GITHUB_WORKSPACE/fox_12.1"
+
+          echo "===== OrangeFox sync complete ====="
+
+          test -d "$GITHUB_WORKSPACE/fox_12.1"
+          
       # ------------------------------------------------------------
       # Clone Redmi Note 14 4G / Tanzanite tree
       # ------------------------------------------------------------
