@@ -112,9 +112,13 @@ jobs:
           set -euo pipefail
           export TOP="$GITHUB_WORKSPACE/fox_12.1"
 
+          set +e
           set +u
           source "$TOP/build/envsetup.sh"
+          envsetup_status=$?
+          set -e
           set -u
+          echo "OrangeFox envsetup exit status: $envsetup_status"
 
           lunch "twrp_${DEVICE}-eng"
 
