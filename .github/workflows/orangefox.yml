@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  FOX_BRANCH: fox_12.1
+  FOX_BRANCH: 12.1
   DEVICE: tanzanite
   STOCK_VENDOR_BOOT_SHA256: 9cbb1b2bc1278e46a5cb99b30925bc607d3ecea40e8e61ccf42f4c2dac225d26
   STOCK_VENDOR_BOOT_SIZE: 67108864
@@ -92,6 +92,7 @@ jobs:
           OrangeFox_sync/orangefox_sync.sh \
             --branch "$FOX_BRANCH" \
             --path "$GITHUB_WORKSPACE/fox_12.1"
+          test -f "$GITHUB_WORKSPACE/fox_12.1/build/envsetup.sh"
 
       - name: Add Tanzanite device tree
         shell: bash
