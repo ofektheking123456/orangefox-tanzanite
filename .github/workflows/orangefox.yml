@@ -117,10 +117,10 @@ jobs:
           source "$TOP/build/envsetup.sh"
           envsetup_status=$?
           set -e
-          set -u
           echo "OrangeFox envsetup exit status: $envsetup_status"
 
           lunch "twrp_${DEVICE}-eng"
+          set -u
 
           export FOX_AB_DEVICE=1
           export FOX_VIRTUAL_AB_DEVICE=1
