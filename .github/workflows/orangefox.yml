@@ -1,4 +1,4 @@
-name: Build OrangeFox - Tanzanite
+name: Build OrangeFox Tanzanite
 
 on:
   workflow_dispatch:
@@ -8,13 +8,23 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      - name: Checkout repository with Git LFS
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
 
-      # ============================================================
-      # 1. Fix Ubuntu APT
-      # ============================================================
-      - name: Fix APT sources
+      - name: Pull Git LFS files
+        shell: bash
         run: |
-          set -eux
+          set -e
+          git lfs install
+          git lfs pull
+
+      - name: Remove problematic Google Chrome APT repository
+        shell: bash
+        run: |
+          set -e
 
           sudo rm -f /etc/apt/sources.list.d/google-chrome.list
           sudo rm -f /etc/apt/sources.list.d/google-chrome.sources
@@ -23,14 +33,12 @@ jobs:
           sudo apt clean
           sudo apt update
 
-      # ============================================================
-      # 2. Dependencies
-      # ============================================================
-      - name: Install dependencies
+      - name: Install build dependencies
+        shell: bash
         run: |
-          set -eux
+          set -e
 
-          sudo apt-get install -y \
+          sudo apt install -y \
             git \
             git-lfs \
             curl \
@@ -60,48 +68,10 @@ jobs:
             zipalign \
             zlib1g-dev
 
-      # ============================================================
-      # 3. Checkout repository + Git LFS
-      # ============================================================
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Pull Git LFS files
-        run: |
-          set -eux
-
-          git lfs install
-          git lfs pull
-
-          echo "Stock vendor_boot:"
-          ls -lh stock/vendor_boot.img
-
-          test -f stock/vendor_boot.img
-
-      # ============================================================
-      # 4. Verify stock vendor_boot
-      # ============================================================
-      - name: Verify stock vendor_boot
-        run: |
-          set -eux
-
-          echo "SHA256:"
-          sha256sum stock/vendor_boot.img
-
-          SIZE=$(stat -c%s stock/vendor_boot.img)
-
-          echo "Size: $SIZE bytes"
-
-          test "$SIZE" -eq 67108864
-
-      # ============================================================
-      # 5. Create 16 GB swap
-      # ============================================================
       - name: Create swap
+        shell: bash
         run: |
-          set -eux
+          set -e
 
           SWAPFILE=/tmp/orangefox.swap
 
@@ -115,12 +85,10 @@ jobs:
 
           free -h
 
-      # ============================================================
-      # 6. Install repo
-      # ============================================================
       - name: Install repo tool
+        shell: bash
         run: |
-          set -eux
+          set -e
 
           sudo curl -L \
             https://storage.googleapis.com/git-repo-downloads/repo \
@@ -130,19 +98,13 @@ jobs:
 
           repo --version
 
-      # ============================================================
-      # 7. Sync OrangeFox
-      #
-      # R12.0 is the OrangeFox release.
-      # 12.1 is the source/manifest branch used by the build.
-      # ============================================================
-      - name: Sync OrangeFox
+      - name: Sync OrangeFox source
+        shell: bash
         run: |
-          set -eux
+          set -e
 
-          rm -rf OrangeFox_sync
-
-          git clone --depth=1 \
+          git clone \
+            --depth=1 \
             https://gitlab.com/OrangeFox/sync.git \
             OrangeFox_sync
 
@@ -154,80 +116,66 @@ jobs:
             --branch 12.1 \
             --path "$GITHUB_WORKSPACE/fox_12.1"
 
-      # ============================================================
-      # 8. Locate Tanzanite device tree automatically
-      # ============================================================
-      - name: Locate Tanzanite device tree
-        working-directory: fox_12.1
+      - name: Clone Tanzanite recovery tree
         shell: bash
         run: |
-          set -eux
+          set -e
 
-          echo "Searching for Tanzanite device tree..."
+          git clone \
+            --depth=1 \
+            --branch fox_12.1 \
+            https://github.com/DVWorkspaces/device_xiaomi_tanzanite_recovery.git \
+            "$GITHUB_WORKSPACE/fox_12.1/device/xiaomi/tanzanite"
 
-          FOUND=""
-
-          while IFS= read -r dir; do
-            if [ -f "$dir/AndroidProducts.mk" ] ||
-               [ -f "$dir/twrp_tanzanite.mk" ] ||
-               [ -f "$dir/BoardConfig.mk" ]; then
-
-              if grep -Rqi "tanzanite" "$dir" 2>/dev/null; then
-                FOUND="$dir"
-                break
-              fi
-            fi
-          done < <(
-            find . \
-              -type d \
-              \( \
-                -path "*/device/*" \
-                -o \
-                -path "*/vendor/*" \
-              \) \
-              2>/dev/null \
-              | sort
-          )
-
-          if [ -z "$FOUND" ]; then
-            echo "Automatic tree search did not find a direct match."
-            echo
-            echo "Searching all files containing tanzanite..."
-            grep -Ril \
-              --exclude-dir=.git \
-              "tanzanite" . \
-              2>/dev/null \
-              | head -100 || true
-
-            echo
-            echo "Continuing because the previous OrangeFox build"
-            echo "successfully configured twrp_tanzanite."
-          else
-            echo "Tanzanite tree found at:"
-            echo "$FOUND"
-          fi
-
-      # ============================================================
-      # 9. Configure OrangeFox
-      # ============================================================
-      - name: Configure OrangeFox
-        working-directory: fox_12.1
+      - name: Verify stock vendor_boot
         shell: bash
         run: |
-          set -eux
+          set -e
 
           STOCK="$GITHUB_WORKSPACE/stock/vendor_boot.img"
+
+          echo "Checking stock vendor_boot..."
+
+          if [ ! -f "$STOCK" ]; then
+            echo "ERROR: stock/vendor_boot.img not found"
+            exit 1
+          fi
+
+          SIZE=$(stat -c%s "$STOCK")
+          SHA=$(sha256sum "$STOCK" | awk '{print $1}')
+
+          echo "Stock size: $SIZE"
+          echo "Stock SHA256: $SHA"
+
+          if [ "$SIZE" -ne 67108864 ]; then
+            echo "ERROR: stock vendor_boot.img is not 64 MiB"
+            exit 1
+          fi
+
+          if [ "$SHA" != "9cbb1b2bc1278e46a5cb99b30925bc607d3ecea40e8e61ccf42f4c2dac225d26" ]; then
+            echo "ERROR: stock vendor_boot.img SHA256 does not match"
+            exit 1
+          fi
+
+          echo "Stock vendor_boot verified."
+
+      - name: Prepare OrangeFox build environment
+        working-directory: fox_12.1
+        shell: bash
+        run: |
+          set -eo pipefail
+
+          echo "Preparing OrangeFox environment..."
 
           export FOX_VENDOR_BOOT_RECOVERY=1
           export FOX_AB_DEVICE=1
           export FOX_VIRTUAL_AB_DEVICE=1
 
-          # Use the real stock vendor_boot as reference.
-          export FOX_REFERENCE_VENDOR_BOOT_IMAGE="$STOCK"
+          export FOX_REFERENCE_VENDOR_BOOT_IMAGE="$GITHUB_WORKSPACE/stock/vendor_boot.img"
 
-          # Android vendor_boot v4:
-          # install only the recovery ramdisk.
           export FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL=1
+
+          export FOX_TARGET_DEVICES=tanzanite
 
           export FOX_PORTS_TMP="$GITHUB_WORKSPACE/fox_installer_tmp"
 
@@ -238,310 +186,317 @@ jobs:
           echo "FOX_VIRTUAL_AB_DEVICE=$FOX_VIRTUAL_AB_DEVICE"
           echo "FOX_REFERENCE_VENDOR_BOOT_IMAGE=$FOX_REFERENCE_VENDOR_BOOT_IMAGE"
           echo "FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL=$FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL"
+          echo "FOX_TARGET_DEVICES=$FOX_TARGET_DEVICES"
 
-          source build/envsetup.sh || true
-
-          lunch twrp_tanzanite-eng
-
-      # ============================================================
-      # 10. Build vendor_boot
-      # ============================================================
       - name: Build OrangeFox
         working-directory: fox_12.1
         shell: bash
         run: |
-          set -eux
-
-          STOCK="$GITHUB_WORKSPACE/stock/vendor_boot.img"
+          set -eo pipefail
 
           export FOX_VENDOR_BOOT_RECOVERY=1
           export FOX_AB_DEVICE=1
           export FOX_VIRTUAL_AB_DEVICE=1
-          export FOX_REFERENCE_VENDOR_BOOT_IMAGE="$STOCK"
+
+          export FOX_REFERENCE_VENDOR_BOOT_IMAGE="$GITHUB_WORKSPACE/stock/vendor_boot.img"
+
           export FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL=1
+
+          export FOX_TARGET_DEVICES=tanzanite
+
           export FOX_PORTS_TMP="$GITHUB_WORKSPACE/fox_installer_tmp"
+
+          mkdir -p "$FOX_PORTS_TMP"
+
+          echo "=========================================="
+          echo "OrangeFox Tanzanite Build"
+          echo "=========================================="
+
+          echo "Stock vendor_boot:"
+          ls -lh "$FOX_REFERENCE_VENDOR_BOOT_IMAGE"
+
+          echo
+          echo "Sourcing OrangeFox environment..."
 
           source build/envsetup.sh || true
 
+          echo
+          echo "Running lunch..."
+
           lunch twrp_tanzanite-eng
+
+          echo
+          echo "Starting vendor_bootimage build..."
 
           mka vendorbootimage -j"$(nproc --all)"
 
-      # ============================================================
-      # 11. Show everything OrangeFox generated
-      # ============================================================
-      - name: Locate generated files
-        working-directory: fox_12.1
-        run: |
-          set -eux
-
-          echo "================================================"
-          echo "ALL GENERATED RECOVERY ARTIFACTS"
-          echo "================================================"
-
-          find out/target/product/tanzanite \
-            -type f \
-            \( \
-              -name "*.img" \
-              -o -name "*.zip" \
-              -o -name "*.cpio" \
-              -o -name "*.cpio.lz4" \
-              -o -name "*ramdisk*" \
-            \) \
-            -printf "%p %s bytes\n" \
-            | sort
-
-      # ============================================================
-      # 12. Verify vendor_boot v4
-      # ============================================================
-      - name: Verify generated vendor_boot
-        working-directory: fox_12.1
-        run: |
-          set -eux
-
-          VENDOR_BOOT="out/target/product/tanzanite/vendor_boot.img"
-
-          test -f "$VENDOR_BOOT"
-
-          echo "Generated vendor_boot:"
-          ls -lh "$VENDOR_BOOT"
-
-          echo
-          echo "Generated SHA256:"
-          sha256sum "$VENDOR_BOOT"
-
-          python3 - "$VENDOR_BOOT" <<'PY'
-          import struct
-          import sys
-
-          path = sys.argv[1]
-
-          with open(path, "rb") as f:
-              data = f.read(4096)
-
-          if data[:8] != b"VNDRBOOT":
-              raise SystemExit(
-                  "ERROR: Generated file is not vendor_boot"
-              )
-
-          version = struct.unpack_from("<I", data, 8)[0]
-          page_size = struct.unpack_from("<I", data, 12)[0]
-          vendor_ramdisk_size = struct.unpack_from("<I", data, 24)[0]
-          header_size = struct.unpack_from("<I", data, 2096)[0]
-          dtb_size = struct.unpack_from("<I", data, 2100)[0]
-          table_size = struct.unpack_from("<I", data, 2112)[0]
-          entry_num = struct.unpack_from("<I", data, 2116)[0]
-          entry_size = struct.unpack_from("<I", data, 2120)[0]
-          bootconfig_size = struct.unpack_from("<I", data, 2124)[0]
-
-          print("magic              :", data[:8])
-          print("header version     :", version)
-          print("page size          :", page_size)
-          print("vendor ramdisk     :", vendor_ramdisk_size)
-          print("header size        :", header_size)
-          print("dtb size           :", dtb_size)
-          print("ramdisk table size :", table_size)
-          print("ramdisk entries    :", entry_num)
-          print("entry size         :", entry_size)
-          print("bootconfig size    :", bootconfig_size)
-
-          if version != 4:
-              raise SystemExit(
-                  "ERROR: vendor_boot is not header v4"
-              )
-
-          if page_size != 4096:
-              raise SystemExit(
-                  "ERROR: unexpected page size"
-              )
-
-          if header_size != 2128:
-              raise SystemExit(
-                  "ERROR: unexpected v4 header size"
-              )
-
-          if entry_size != 108:
-              raise SystemExit(
-                  "ERROR: unexpected vendor ramdisk entry size"
-              )
-
-          print()
-          print("vendor_boot v4 verification PASSED")
-          PY
-
-      # ============================================================
-      # 13. Prepare final artifact directory
-      # ============================================================
-      - name: Prepare final artifacts
-        run: |
-          set -eux
-
-          rm -rf final
-          mkdir -p final
-
-      # ============================================================
-      # 14. Find OrangeFox installer ZIP
-      # ============================================================
-      - name: Find installer ZIP
+      - name: Inspect build output
         working-directory: fox_12.1
         shell: bash
         run: |
-          set -eux
+          set -eo pipefail
 
-          echo "Searching for ZIP files..."
+          echo "=========================================="
+          echo "ALL RECOVERY/VENDOR RAMDISK OUTPUTS"
+          echo "=========================================="
 
-          mapfile -t ZIPS < <(
-            find out \
-              -type f \
-              -iname "*.zip" \
-              -size +1M \
-              | sort
-          )
+          if [ ! -d out ]; then
+            echo "ERROR: out directory does not exist"
+            exit 1
+          fi
 
-          if [ "${#ZIPS[@]}" -eq 0 ]; then
-            echo "No ZIP found in build output."
-            echo
-            echo "This OrangeFox tree may not automatically"
-            echo "generate an installer ZIP."
+          find out -type f \
+            \( \
+              -iname "*.img" \
+              -o -iname "*.cpio" \
+              -o -iname "*.cpio.lz4" \
+              -iname "*vendor_ramdisk*" \
+              -o -iname "*ramdisk*" \
+            \) \
+            -printf "%p | %s bytes\n" \
+            | sort
+
+          echo
+          echo "=========================================="
+          echo "ALL CPIO/LZ4 FILES"
+          echo "=========================================="
+
+          find out -type f \
+            \( \
+              -name "*.cpio" \
+              -o -name "*.cpio.lz4" \
+              -o -name "*.cpio.xz" \
+              -o -name "*.cpio.zst" \
+            \) \
+            -printf "%p | %s bytes\n" \
+            | sort || true
+
+      - name: Verify OrangeFox vendor_boot image
+        working-directory: fox_12.1
+        shell: bash
+        run: |
+          set -eo pipefail
+
+          FOX_IMG=$(find out -type f \
+            -name "OrangeFox-*.img" \
+            -size 64M \
+            | head -n 1)
+
+          if [ -z "$FOX_IMG" ]; then
+            echo "ERROR: OrangeFox 64 MiB image not found"
+            exit 1
+          fi
+
+          echo "OrangeFox image:"
+          echo "$FOX_IMG"
+
+          SIZE=$(stat -c%s "$FOX_IMG")
+          SHA=$(sha256sum "$FOX_IMG" | awk '{print $1}')
+
+          echo
+          echo "Size: $SIZE"
+          echo "SHA256: $SHA"
+
+          echo
+          echo "Header:"
+
+          xxd -l 64 "$FOX_IMG"
+
+          MAGIC=$(dd if="$FOX_IMG" bs=1 count=8 2>/dev/null)
+
+          if [ "$MAGIC" != "VNDRBOOT" ]; then
+            echo "ERROR: OrangeFox image does not contain VNDRBOOT header"
             exit 1
           fi
 
           echo
-          echo "ZIP candidates:"
-          printf '%s\n' "${ZIPS[@]}"
+          echo "OrangeFox vendor_boot image looks valid."
 
-          SELECTED=""
+      - name: Find generated vendor_boot
+        working-directory: fox_12.1
+        shell: bash
+        run: |
+          set -eo pipefail
 
-          for z in "${ZIPS[@]}"; do
+          echo "=========================================="
+          echo "GENERATED vendor_boot.img FILES"
+          echo "=========================================="
 
-            if unzip -l "$z" \
-              | grep -q "META-INF/com/google/android"; then
+          find out -type f \
+            -name "vendor_boot.img" \
+            -printf "%p | %s bytes\n" \
+            | sort
 
-              SELECTED="$z"
-              break
-            fi
+      - name: Collect all build artifacts
+        working-directory: fox_12.1
+        shell: bash
+        run: |
+          set -eo pipefail
 
+          ARTIFACTS="$GITHUB_WORKSPACE/artifacts"
+
+          rm -rf "$ARTIFACTS"
+
+          mkdir -p "$ARTIFACTS"
+          mkdir -p "$ARTIFACTS/vendor_ramdisk"
+
+          echo "=========================================="
+          echo "Collecting OrangeFox image"
+          echo "=========================================="
+
+          FOX_IMG=$(find out -type f \
+            -name "OrangeFox-*.img" \
+            -size 64M \
+            | head -n 1)
+
+          if [ -n "$FOX_IMG" ]; then
+            cp "$FOX_IMG" \
+              "$ARTIFACTS/OrangeFox-R12.0-tanzanite.img"
+
+            echo "Copied:"
+            echo "$FOX_IMG"
+          fi
+
+          echo
+          echo "=========================================="
+          echo "Collecting vendor_boot.img"
+          echo "=========================================="
+
+          VENDOR_BOOT=$(find out -type f \
+            -name "vendor_boot.img" \
+            -size 64M \
+            | head -n 1)
+
+          if [ -n "$VENDOR_BOOT" ]; then
+            cp "$VENDOR_BOOT" \
+              "$ARTIFACTS/vendor_boot.img"
+
+            echo "Copied:"
+            echo "$VENDOR_BOOT"
+          fi
+
+          echo
+          echo "=========================================="
+          echo "Collecting ramdisk.img"
+          echo "=========================================="
+
+          RAMDISK=$(find out -type f \
+            -name "ramdisk.img" \
+            | head -n 1)
+
+          if [ -n "$RAMDISK" ]; then
+            cp "$RAMDISK" \
+              "$ARTIFACTS/ramdisk.img"
+
+            echo "Copied:"
+            echo "$RAMDISK"
+          fi
+
+          echo
+          echo "=========================================="
+          echo "Searching entire out/ tree for vendor ramdisk"
+          echo "=========================================="
+
+          find out -type f \
+            \( \
+              -iname "*vendor_ramdisk*" \
+              -o -iname "*vendor*ramdisk*.cpio*" \
+              -o -iname "*ramdisk*.cpio*" \
+              -o -iname "*ramdisk*.cpio.lz4" \
+            \) \
+            -print0 |
+          while IFS= read -r -d '' FILE; do
+            BASENAME=$(basename "$FILE")
+
+            echo "FOUND: $FILE"
+
+            cp "$FILE" \
+              "$ARTIFACTS/vendor_ramdisk/$BASENAME"
           done
 
-          if [ -z "$SELECTED" ]; then
-            echo
-            echo "ERROR:"
-            echo "ZIPs exist, but none contains the required"
-            echo "Android installer META-INF structure."
-            exit 1
-          fi
-
           echo
-          echo "Selected installer:"
-          echo "$SELECTED"
+          echo "=========================================="
+          echo "Final collected artifacts"
+          echo "=========================================="
 
-          cp "$SELECTED" \
-            "$GITHUB_WORKSPACE/final/OrangeFox-tanzanite-OS3.0.302.0-WOGMIXM-installer.zip"
-
-      # ============================================================
-      # 15. Copy generated recovery artifacts
-      # ============================================================
-      - name: Collect recovery artifacts
-        working-directory: fox_12.1
-        shell: bash
-        run: |
-          set -eux
-
-          FINAL="$GITHUB_WORKSPACE/final"
-
-          VENDOR_BOOT="out/target/product/tanzanite/vendor_boot.img"
-
-          test -f "$VENDOR_BOOT"
-
-          cp "$VENDOR_BOOT" \
-            "$FINAL/vendor_boot-built.img"
-
-          if [ -f out/target/product/tanzanite/ramdisk.img ]; then
-            cp \
-              out/target/product/tanzanite/ramdisk.img \
-              "$FINAL/ramdisk.img"
-          fi
-
-          # Collect recovery ramdisk artifacts.
-          find out/target/product/tanzanite \
-            -type f \
-            \( \
-              -name "vendor_ramdisk_recovery.cpio" \
-              -o -name "vendor_ramdisk.cpio" \
-              -o -name "vendor_ramdisk.cpio.lz4" \
-            \) \
-            -exec cp {} "$FINAL/" \;
-
-          echo
-          echo "FINAL ARTIFACTS:"
-          find "$FINAL" \
-            -maxdepth 1 \
-            -type f \
-            -printf "%f %s bytes\n" \
+          find "$ARTIFACTS" -type f \
+            -printf "%p | %s bytes\n" \
             | sort
 
-      # ============================================================
-      # 16. Inspect installer
-      # ============================================================
-      - name: Inspect installer
+      - name: Decompress vendor ramdisk files
+        shell: bash
         run: |
-          set -eux
+          set -eo pipefail
 
-          ZIP="$GITHUB_WORKSPACE/final/OrangeFox-tanzanite-OS3.0.302.0-WOGMIXM-installer.zip"
+          DIR="$GITHUB_WORKSPACE/artifacts/vendor_ramdisk"
 
-          test -f "$ZIP"
+          if [ ! -d "$DIR" ]; then
+            exit 0
+          fi
 
-          echo "================================================"
-          echo "INSTALLER ZIP"
-          echo "================================================"
+          echo "=========================================="
+          echo "Inspecting vendor ramdisk files"
+          echo "=========================================="
 
-          ls -lh "$ZIP"
+          shopt -s nullglob
+
+          for FILE in "$DIR"/*; do
+            [ -f "$FILE" ] || continue
+
+            echo
+            echo "FILE: $FILE"
+
+            file "$FILE" || true
+
+            case "$FILE" in
+              *.cpio.lz4)
+                OUTPUT="${FILE%.lz4}.cpio"
+
+                echo "Decompressing:"
+                echo "$OUTPUT"
+
+                lz4 -d -f "$FILE" "$OUTPUT" || true
+                ;;
+            esac
+          done
 
           echo
-          echo "================================================"
-          echo "ZIP CONTENTS"
-          echo "================================================"
+          echo "=========================================="
+          echo "After decompression"
+          echo "=========================================="
 
-          unzip -l "$ZIP"
+          find "$DIR" -type f \
+            -printf "%p | %s bytes\n" \
+            | sort
 
-          echo
-          echo "================================================"
-          echo "META-INF"
-          echo "================================================"
-
-          unzip -l "$ZIP" \
-            | grep -E \
-              'META-INF/com/google/android/(update-binary|updater-script)'
-
-          echo
-          echo "================================================"
-          echo "RAMDISK"
-          echo "================================================"
-
-          unzip -l "$ZIP" \
-            | grep -E \
-              'vendor_ramdisk|ramdisk' \
-            || true
-
-      # ============================================================
-      # 17. Generate checksums
-      # ============================================================
-      - name: Generate SHA256 checksums
+      - name: Create inspection ZIP
+        shell: bash
         run: |
-          set -eux
+          set -eo pipefail
 
-          cd final
+          cd "$GITHUB_WORKSPACE/artifacts"
 
-          sha256sum * \
-            | tee SHA256SUMS.txt
+          zip -r \
+            "$GITHUB_WORKSPACE/OrangeFox-tanzanite-OS3.0.302.0-WOGMIXM.zip" \
+            .
 
-      # ============================================================
-      # 18. Upload final artifact
-      # ============================================================
-      - name: Upload OrangeFox artifact
+          echo
+          echo "=========================================="
+          echo "ZIP created"
+          echo "=========================================="
+
+          ls -lh \
+            "$GITHUB_WORKSPACE/OrangeFox-tanzanite-OS3.0.302.0-WOGMIXM.zip"
+
+          echo
+          unzip -l \
+            "$GITHUB_WORKSPACE/OrangeFox-tanzanite-OS3.0.302.0-WOGMIXM.zip"
+
+      - name: Upload OrangeFox artifacts
         uses: actions/upload-artifact@v4
         with:
           name: OrangeFox-tanzanite-OS3.0.302.0-WOGMIXM
-          path: final/
+          path: |
+            OrangeFox-tanzanite-OS3.0.302.0-WOGMIXM.zip
+            artifacts/
           if-no-files-found: error
-          compression-level: 0
