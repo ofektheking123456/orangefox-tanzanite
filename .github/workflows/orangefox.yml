@@ -89,9 +89,12 @@ jobs:
           set -euo pipefail
           git clone --depth=1 https://gitlab.com/OrangeFox/sync.git OrangeFox_sync
           chmod +x OrangeFox_sync/orangefox_sync.sh
-          OrangeFox_sync/orangefox_sync.sh \
-            --branch "$FOX_BRANCH" \
-            --path "$GITHUB_WORKSPACE/fox_12.1"
+          (
+            cd OrangeFox_sync
+            ./orangefox_sync.sh \
+              --branch "$FOX_BRANCH" \
+              --path "$GITHUB_WORKSPACE/fox_12.1"
+          )
           test -f "$GITHUB_WORKSPACE/fox_12.1/build/envsetup.sh"
 
       - name: Add Tanzanite device tree
