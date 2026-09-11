@@ -150,7 +150,9 @@ jobs:
             "$product/vendor_ramdisk.cpio" \
             "$product/vendor_ramdisk.cpio.lz4" \
             "$product/obj/PACKAGING/vendor_boot_intermediates/vendor_ramdisk_recovery.cpio" \
-            "$product/obj/PACKAGING/vendor_boot_intermediates/vendor_ramdisk_recovery.cpio.lz4"; do
+            "$product/obj/PACKAGING/vendor_boot_intermediates/vendor_ramdisk_recovery.cpio.lz4" \
+            "$product/obj/PACKAGING/vendor_boot_intermediates/vendor_ramdisk.cpio" \
+            "$product/obj/PACKAGING/vendor_boot_intermediates/vendor_ramdisk.cpio.lz4"; do
             if [ -f "$candidate" ]; then
               ramdisk="$candidate"
               break
