@@ -7,8 +7,8 @@ env:
   FOX_BRANCH: 12.1
   DEVICE: tanzanite
   TARGET_ANDROID_VERSION: "16"
-  TARGET_FIRMWARE: OS3.0.302.0.WOGMIXM
-  STOCK_VENDOR_BOOT_SHA256: 9cbb1b2bc1278e46a5cb99b30925bc607d3ecea40e8e61ccf42f4c2dac225d26
+  TARGET_FIRMWARE: OS3.0.303.0.WOGMIXM
+  STOCK_VENDOR_BOOT_SHA256: REPLACE_WITH_OS3.0.303.0_VENDOR_BOOT_SHA256
   STOCK_VENDOR_BOOT_SIZE: 67108864
 
 jobs:
@@ -59,7 +59,16 @@ jobs:
           image=stock/vendor_boot.img
           test -f "$image"
           test "$(stat -c%s "$image")" -eq "$STOCK_VENDOR_BOOT_SIZE"
-          test "$(sha256sum "$image" | cut -d' ' -f1)" = "$STOCK_VENDOR_BOOT_SHA256"
+          stock_sha256="$(sha256sum "$image" | cut -d' ' -f1)"
+          test "$STOCK_VENDOR_BOOT_SHA256" != "REPLACE_WITH_OS3.0.303.0_VENDOR_BOOT_SHA256" || {
+            echo "::error::Set STOCK_VENDOR_BOOT_SHA256 after adding the OS3.0.303.0.WOGMIXM stock image"
+            exit 1
+          }
+          test "$stock_sha256" = "$STOCK_VENDOR_BOOT_SHA256"
+          test "$stock_sha256" != "9cbb1b2bc1278e46a5cb99b30925bc607d3ecea40e8e61ccf42f4c2dac225d26" || {
+            echo "::error::The repository still contains the old OS3.0.302.0.WOGMIXM vendor_boot reference"
+            exit 1
+          }
           test "$(dd if="$image" bs=1 count=8 2>/dev/null)" = "VNDRBOOT"
 
       - name: Verify Tanzanite device tree

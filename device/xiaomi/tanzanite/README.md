@@ -9,7 +9,7 @@ The Xiaomi Redmi Note 14 4G is a budget range smartphone from Xiaomi, announced 
 
 Basic   | Spec Sheet
 -------:|:-------------------------
-OS	| Android 16, HyperOS 3.1 Global (`OS3.0.302.0.WOGMIXM`)
+OS	| Android 16, HyperOS 3.1 Global (`OS3.0.303.0.WOGMIXM`)
 CPU     | Octa-core (2x2.2 GHz Cortex-A76 & 6x2.0 GHz Cortex-A55)
 Chipset | Mediatek Helio G99 Ultra (6 nm)
 GPU     | Mali-G57 MC2

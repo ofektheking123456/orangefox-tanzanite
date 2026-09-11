@@ -3,7 +3,7 @@
 This repository contains an OrangeFox `fox_12.1` build setup and the
 Tanzanite recovery device tree. The target is the Redmi Note 14 4G with the
 MediaTek MT6789 (Helio G99 Ultra), HyperOS 3.1 Android 16 Global firmware
-`OS3.0.302.0.WOGMIXM`, Android boot header v4, dynamic partitions, and A/B
+`OS3.0.303.0.WOGMIXM`, Android boot header v4, dynamic partitions, and A/B
 with virtual A/B updates.
 
 `fox_12.1` is the OrangeFox source/manifest branch name, not the Android
@@ -12,8 +12,8 @@ provide an Android 16/`fox_16.1` branch; the Android 16 target is represented
 by the stock vendor_boot reference and the Tanzanite device tree.
 
 Recovery is stored in the `vendor_boot` partition. The checked-in
-`stock/vendor_boot.img` is a 64 MiB reference image from the target firmware;
-the workflow verifies its SHA-256 before using it to preserve the stock
+`stock/vendor_boot.img` must be the 64 MiB reference image from
+`OS3.0.303.0.WOGMIXM`; the workflow verifies its SHA-256 before using it to preserve the stock
 vendor ramdisk layout. Do not substitute an image from another region,
 firmware release, or device variant.
 
