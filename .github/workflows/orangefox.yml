@@ -191,19 +191,27 @@ jobs:
             }
           done
 
-          mkdir -p "$GITHUB_WORKSPACE/artifacts"
-          cp "$cpio" "$GITHUB_WORKSPACE/artifacts/vendor_ramdisk_recovery.cpio"
-          cp "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
-            "$GITHUB_WORKSPACE/artifacts/stock-vendor_boot.img"
-
           image="$product/vendor_boot.img"
-          if [ -f "$image" ] && cmp -s "$image" "$GITHUB_WORKSPACE/stock/vendor_boot.img"; then
+          test -f "$image" || {
+            echo "::error::OrangeFox vendor_boot.img was not produced"
+            exit 1
+          }
+          test "$(stat -c%s "$image")" -eq "$STOCK_VENDOR_BOOT_SIZE"
+          test "$(dd if="$image" bs=1 count=8 2>/dev/null)" = "VNDRBOOT"
+          if cmp -s "$image" "$GITHUB_WORKSPACE/stock/vendor_boot.img"; then
             echo "::error::Generated vendor_boot.img is byte-identical to the stock reference"
             exit 1
           fi
 
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          cp "$cpio" "$GITHUB_WORKSPACE/artifacts/vendor_ramdisk_recovery.cpio"
+          cp "$image" "$GITHUB_WORKSPACE/artifacts/orangefox-vendor_boot.img"
+          cp "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
+            "$GITHUB_WORKSPACE/artifacts/stock-vendor_boot.img"
+
           sha256sum \
             "$GITHUB_WORKSPACE/artifacts/vendor_ramdisk_recovery.cpio" \
+            "$GITHUB_WORKSPACE/artifacts/orangefox-vendor_boot.img" \
             "$GITHUB_WORKSPACE/artifacts/stock-vendor_boot.img" \
             | tee "$GITHUB_WORKSPACE/artifacts/SHA256SUMS"
           {
@@ -211,16 +219,15 @@ jobs:
             echo "orangefox_branch=$FOX_BRANCH"
             echo "recovery_ramdisk=vendor_ramdisk_recovery.cpio"
             echo "recovery_ramdisk_size=$(stat -c%s "$cpio")"
+            echo "orangefox_vendor_boot=orangefox-vendor_boot.img"
+            echo "orangefox_vendor_boot_sha256=$(sha256sum "$image" | cut -d' ' -f1)"
             echo "stock_reference=stock-vendor_boot.img"
-            if [ -f "$image" ]; then
-              echo "vendor_boot_image=vendor_boot.img"
-              echo "vendor_boot_image_sha256=$(sha256sum "$image" | cut -d' ' -f1)"
-            fi
           } > "$GITHUB_WORKSPACE/artifacts/build-info.txt"
           (
             cd "$GITHUB_WORKSPACE"
             zip -9 -r "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
               artifacts/vendor_ramdisk_recovery.cpio \
+              artifacts/orangefox-vendor_boot.img \
               artifacts/stock-vendor_boot.img \
               artifacts/SHA256SUMS \
               artifacts/build-info.txt

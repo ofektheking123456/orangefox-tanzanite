@@ -43,27 +43,29 @@ lunch twrp_tanzanite-eng
 mka vendorbootimage -j"$(nproc --all)"
 ```
 
-The expected recovery output is a generated
-`vendor_ramdisk_recovery.cpio` (or its temporary `.lz4` form) under
-`fox_12.1/out/target/product/tanzanite/`. The workflow validates that the
+The expected recovery outputs are a generated `vendor_boot.img` and its vendor
+ramdisk (`vendor_ramdisk.cpio.lz4`, copied to `vendor_ramdisk_recovery.cpio`)
+under `fox_12.1/out/target/product/tanzanite/`. The workflow validates that the
 ramdisk contains `system/bin/recovery`, `system/bin/fastbootd`,
 `sbin/foxstart.sh`, and `system/etc/recovery.fstab`. Any
-`vendor_boot.img` produced by the Android packaging target is treated only as
-an additional diagnostic and is rejected if it is byte-identical to the stock
+`vendor_boot.img` produced by the Android packaging target is required,
+validated as a vendor_boot v4 image, copied to the artifact as
+`orangefox-vendor_boot.img`, and rejected if it is byte-identical to the stock
 reference.
 
 ## GitHub Actions
 
 Run **Build OrangeFox Tanzanite** with **workflow_dispatch**. The job verifies
-the LFS reference image, syncs OrangeFox branch `12.1` into `fox_12.1`, builds the checked-in
-device tree, and uploads `OrangeFox-tanzanite-recovery-ramdisk.zip` together
-with the individual artifacts.
+the LFS reference image, syncs OrangeFox branch `12.1` into `fox_12.1`, builds
+the checked-in device tree, and uploads
+`OrangeFox-tanzanite-recovery-ramdisk.zip` together with the generated
+`orangefox-vendor_boot.img`, ramdisk, and stock reference artifacts.
 
 ## Flashing and hardware status
 
-This tree is configured to produce a vendor_boot image, but a successful
-compile is not proof that recovery boots or that decryption, touch, display,
-USB, or fastbootd work on every regional variant. Unlock the bootloader and
-keep a complete matching stock firmware package before any hardware testing.
-The workflow intentionally produces and verifies the recovery ramdisk first;
-it does not claim that a tested, directly flashable vendor_boot image exists.
+This tree is configured to produce an OrangeFox vendor_boot image, but a
+successful compile is not proof that recovery boots or that decryption, touch,
+display, USB, or fastbootd work on every regional variant. Unlock the bootloader
+and keep a complete matching stock firmware package before any hardware testing.
+The workflow now produces and verifies the OrangeFox vendor_boot image, but it
+has not been hardware-tested on the device.
