@@ -2,8 +2,14 @@
 
 This repository contains an OrangeFox `fox_12.1` build setup and the
 Tanzanite recovery device tree. The target is the Redmi Note 14 4G with the
-MediaTek MT6789 (Helio G99 Ultra), Android 14/HyperOS firmware, Android boot
-header v4, dynamic partitions, and A/B with virtual A/B updates.
+MediaTek MT6789 (Helio G99 Ultra), HyperOS 3.1 Android 16 Global firmware
+`OS3.0.302.0.WOGMIXM`, Android boot header v4, dynamic partitions, and A/B
+with virtual A/B updates.
+
+`fox_12.1` is the OrangeFox source/manifest branch name, not the Android
+version of the target firmware. The current OrangeFox sync tool does not
+provide an Android 16/`fox_16.1` branch; the Android 16 target is represented
+by the stock vendor_boot reference and the Tanzanite device tree.
 
 Recovery is stored in the `vendor_boot` partition. The checked-in
 `stock/vendor_boot.img` is a 64 MiB reference image from the target firmware;
@@ -21,7 +27,7 @@ ROOT=$(pwd)
 git lfs pull
 git clone https://gitlab.com/OrangeFox/sync.git OrangeFox_sync
 chmod +x OrangeFox_sync/orangefox_sync.sh
-OrangeFox_sync/orangefox_sync.sh --branch fox_12.1 --path "$ROOT/fox_12.1"
+OrangeFox_sync/orangefox_sync.sh --branch 12.1 --path "$ROOT/fox_12.1"
 rsync -a --delete device/xiaomi/tanzanite/ \
   fox_12.1/device/xiaomi/tanzanite/
 
@@ -49,7 +55,7 @@ reference.
 ## GitHub Actions
 
 Run **Build OrangeFox Tanzanite** with **workflow_dispatch**. The job verifies
-the LFS reference image, syncs OrangeFox `fox_12.1`, builds the checked-in
+the LFS reference image, syncs OrangeFox branch `12.1` into `fox_12.1`, builds the checked-in
 device tree, and uploads `OrangeFox-tanzanite-recovery-ramdisk.zip` together
 with the individual artifacts.
 
