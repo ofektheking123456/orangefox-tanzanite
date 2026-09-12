@@ -130,6 +130,13 @@ jobs:
           set -e
           echo "OrangeFox envsetup exit status: $envsetup_status"
 
+          export FOX_AB_DEVICE=1
+          export FOX_VIRTUAL_AB_DEVICE=1
+          export FOX_VENDOR_BOOT_RECOVERY=1
+          export FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL=1
+          export FOX_REFERENCE_VENDOR_BOOT_IMAGE="$GITHUB_WORKSPACE/stock/vendor_boot.img"
+          export FOX_TARGET_DEVICES="$DEVICE"
+          export FOX_PORTS_TMP="$GITHUB_WORKSPACE/fox_installer_tmp"
           lunch "twrp_${DEVICE}-eng"
           set -u
 
@@ -282,7 +289,9 @@ jobs:
                       raise SystemExit("multiple recovery ramdisk entries found")
                   recovery = entry
 
+          open(table_path, "w").write("\n".join(lines) + "\n")
           if recovery is None:
+              print("\n".join(lines), file=sys.stderr)
               raise SystemExit("no RECOVERY ramdisk entry (type 2) found")
           start = ramdisk_offset + recovery["offset"]
           end = start + recovery["size"]
