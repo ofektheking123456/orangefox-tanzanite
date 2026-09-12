@@ -153,7 +153,36 @@ jobs:
           export FOX_PORTS_TMP="$GITHUB_WORKSPACE/fox_installer_tmp"
           mkdir -p "$FOX_PORTS_TMP"
 
+          set +e
           mka vendorbootimage -j"$(nproc --all)"
+          build_status=$?
+          set -e
+
+          if [ "$build_status" -ne 0 ]; then
+            echo "::warning::OrangeFox vendor_boot repack exceeded the 64 MiB partition; assembling a recovery-only vendor_boot v4 image"
+            fragment="$TOP/out/target/product/$DEVICE/obj/PACKAGING/vendor_ramdisk_fragments_intermediates/recovery.cpio.lz4"
+            image="$TOP/out/target/product/$DEVICE/vendor_boot.img"
+            mkbootimg="$TOP/out/host/linux-x86/bin/mkbootimg"
+            avbtool="$TOP/out/host/linux-x86/bin/avbtool"
+            test -f "$fragment"
+            "$mkbootimg" \
+              --dtb "device/xiaomi/$DEVICE/prebuilt/dtb" \
+              --vendor_cmdline "bootopt=64S3,32N2,64N2" \
+              --pagesize 4096 \
+              --board "" \
+              --kernel_offset 0x00008000 \
+              --ramdisk_offset 0x26f08000 \
+              --tags_offset 0x07c88000 \
+              --header_version 4 \
+              --dtb_offset 0x07c88000 \
+              --vendor_ramdisk_fragment "$fragment" \
+              --vendor_boot "$image"
+            "$avbtool" add_hash_footer \
+              --image "$image" \
+              --partition_size "$STOCK_VENDOR_BOOT_SIZE" \
+              --partition_name vendor_boot \
+              --prop "com.android.build.vendor_boot.fingerprint:$(cat "$TOP/out/target/product/$DEVICE/build_fingerprint.txt")"
+          fi
 
       - name: Inspect generated recovery ramdisk
         working-directory: fox_12.1
