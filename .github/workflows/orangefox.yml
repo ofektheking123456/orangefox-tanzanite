@@ -193,7 +193,8 @@ jobs:
             system/bin/recovery \
             system/bin/fastbootd \
             sbin/foxstart.sh \
-            system/etc/recovery.fstab; do
+            system/etc/recovery.fstab \
+            system/etc/fox.cfg; do
             grep -Fxq "$required" "$listing" || {
               echo "::error::Generated recovery ramdisk is missing $required"
               exit 1
@@ -207,6 +208,115 @@ jobs:
           }
           test "$(stat -c%s "$image")" -eq "$STOCK_VENDOR_BOOT_SIZE"
           test "$(dd if="$image" bs=1 count=8 2>/dev/null)" = "VNDRBOOT"
+          image_sha256="$(sha256sum "$image" | cut -d' ' -f1)"
+          test "$image_sha256" != "$STOCK_VENDOR_BOOT_SHA256"
+
+          table="$work/vendor_boot_table.txt"
+          python3 - "$image" "$work/final_recovery.ramdisk" "$table" <<'PY'
+          import struct
+          import sys
+
+          image_path, recovery_path, table_path = sys.argv[1:]
+          data = open(image_path, "rb").read()
+          u32 = lambda off: struct.unpack_from("<I", data, off)[0]
+          align = lambda value, size: (value + size - 1) // size * size
+
+          if data[:8] != b"VNDRBOOT":
+              raise SystemExit("invalid vendor_boot magic")
+          header_version = u32(8)
+          page_size = u32(12)
+          vendor_ramdisk_size = u32(24)
+          header_size = u32(2096)
+          dtb_size = u32(2100)
+          if header_version != 4:
+              raise SystemExit(f"expected vendor_boot header version 4, got {header_version}")
+          if page_size == 0 or header_size == 0:
+              raise SystemExit("invalid vendor_boot page/header size")
+
+          table_size = u32(2112)
+          entry_count = u32(2116)
+          entry_size = u32(2120)
+          bootconfig_size = u32(2124)
+          if entry_size != 108:
+              raise SystemExit(f"unexpected ramdisk table entry size {entry_size}")
+          if table_size != entry_count * entry_size:
+              raise SystemExit("ramdisk table size does not match entry count")
+
+          ramdisk_offset = align(header_size, page_size)
+          table_offset = align(
+              ramdisk_offset + vendor_ramdisk_size + dtb_size, page_size
+          )
+          if table_offset + table_size > len(data):
+              raise SystemExit("vendor ramdisk table exceeds image")
+
+          recovery = None
+          lines = [
+              f"header_version={header_version}",
+              f"page_size={page_size}",
+              f"vendor_ramdisk_size={vendor_ramdisk_size}",
+              f"header_size={header_size}",
+              f"dtb_size={dtb_size}",
+              f"table_offset={table_offset}",
+              f"table_size={table_size}",
+              f"entry_count={entry_count}",
+              f"entry_size={entry_size}",
+              f"bootconfig_size={bootconfig_size}",
+          ]
+          for index in range(entry_count):
+              off = table_offset + index * entry_size
+              size, rel_offset, ramdisk_type = struct.unpack_from("<III", data, off)
+              name = data[off + 12:off + 44].split(b"\0", 1)[0].decode("ascii", "replace")
+              entry = {
+                  "index": index,
+                  "size": size,
+                  "offset": rel_offset,
+                  "type": ramdisk_type,
+                  "name": name,
+              }
+              lines.append(
+                  f"entry[{index}].size={size} offset={rel_offset} "
+                  f"type={ramdisk_type} name={name!r}"
+              )
+              if ramdisk_type == 2:
+                  if recovery is not None:
+                      raise SystemExit("multiple recovery ramdisk entries found")
+                  recovery = entry
+
+          if recovery is None:
+              raise SystemExit("no RECOVERY ramdisk entry (type 2) found")
+          start = ramdisk_offset + recovery["offset"]
+          end = start + recovery["size"]
+          if start < ramdisk_offset or end > ramdisk_offset + vendor_ramdisk_size:
+              raise SystemExit("recovery ramdisk entry exceeds vendor ramdisk")
+          open(recovery_path, "wb").write(data[start:end])
+          lines.append(f"recovery_entry_index={recovery['index']}")
+          open(table_path, "w").write("\n".join(lines) + "\n")
+          PY
+
+          final_ramdisk="$work/final_recovery.ramdisk"
+          final_cpio="$work/final_recovery.cpio"
+          if lz4 -d -f "$final_ramdisk" "$final_cpio" 2>/dev/null; then
+            :
+          else
+            cp "$final_ramdisk" "$final_cpio"
+          fi
+          final_listing="$work/final_ramdisk.list"
+          cpio -it < "$final_cpio" | sed 's#^\./##' | tee "$final_listing"
+          for required in \
+            system/bin/recovery \
+            system/bin/fastbootd \
+            sbin/foxstart.sh \
+            system/etc/recovery.fstab \
+            system/etc/fox.cfg; do
+            grep -Fxq "$required" "$final_listing" || {
+              echo "::error::Final vendor_boot recovery ramdisk is missing $required"
+              exit 1
+            }
+          done
+          cmp -s "$cpio" "$final_cpio" || {
+            echo "::error::Recovery ramdisk extracted from final vendor_boot differs from build output"
+            exit 1
+          }
           if cmp -s "$image" "$GITHUB_WORKSPACE/stock/vendor_boot.img"; then
             echo "::error::Generated vendor_boot.img is byte-identical to the stock reference"
             exit 1
@@ -214,12 +324,15 @@ jobs:
 
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
           cp "$cpio" "$GITHUB_WORKSPACE/artifacts/vendor_ramdisk_recovery.cpio"
+          cp "$final_cpio" "$GITHUB_WORKSPACE/artifacts/final_vendor_ramdisk_recovery.cpio"
+          cp "$table" "$GITHUB_WORKSPACE/artifacts/vendor_boot_v4_table.txt"
           cp "$image" "$GITHUB_WORKSPACE/artifacts/orangefox-vendor_boot.img"
           cp "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
             "$GITHUB_WORKSPACE/artifacts/stock-vendor_boot.img"
 
           sha256sum \
             "$GITHUB_WORKSPACE/artifacts/vendor_ramdisk_recovery.cpio" \
+            "$GITHUB_WORKSPACE/artifacts/final_vendor_ramdisk_recovery.cpio" \
             "$GITHUB_WORKSPACE/artifacts/orangefox-vendor_boot.img" \
             "$GITHUB_WORKSPACE/artifacts/stock-vendor_boot.img" \
             | tee "$GITHUB_WORKSPACE/artifacts/SHA256SUMS"
@@ -228,14 +341,18 @@ jobs:
             echo "orangefox_branch=$FOX_BRANCH"
             echo "recovery_ramdisk=vendor_ramdisk_recovery.cpio"
             echo "recovery_ramdisk_size=$(stat -c%s "$cpio")"
+            echo "final_recovery_ramdisk=final_vendor_ramdisk_recovery.cpio"
+            echo "final_recovery_ramdisk_sha256=$(sha256sum "$final_cpio" | cut -d' ' -f1)"
             echo "orangefox_vendor_boot=orangefox-vendor_boot.img"
-            echo "orangefox_vendor_boot_sha256=$(sha256sum "$image" | cut -d' ' -f1)"
+            echo "orangefox_vendor_boot_sha256=$image_sha256"
             echo "stock_reference=stock-vendor_boot.img"
           } > "$GITHUB_WORKSPACE/artifacts/build-info.txt"
           (
             cd "$GITHUB_WORKSPACE"
             zip -9 -r "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
               artifacts/vendor_ramdisk_recovery.cpio \
+              artifacts/final_vendor_ramdisk_recovery.cpio \
+              artifacts/vendor_boot_v4_table.txt \
               artifacts/orangefox-vendor_boot.img \
               artifacts/stock-vendor_boot.img \
               artifacts/SHA256SUMS \
