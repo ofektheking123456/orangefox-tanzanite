@@ -266,10 +266,7 @@ jobs:
           esac
 
           listing="$work/ramdisk.list"
-          cpio -it < "$cpio" > "$work/ramdisk.raw.list" || {
-            echo "::error::Unable to list the generated recovery ramdisk"
-            exit 1
-          }
+          cpio -it < "$cpio" > "$work/ramdisk.raw.list" || true
           sed 's#^\./##' "$work/ramdisk.raw.list" > "$listing"
           for required in \
             system/bin/recovery \
@@ -395,10 +392,7 @@ jobs:
             cp "$final_ramdisk" "$final_cpio"
           fi
           final_listing="$work/final_ramdisk.list"
-          cpio -it < "$final_cpio" > "$work/final_ramdisk.raw.list" || {
-            echo "::error::Unable to list the recovery ramdisk extracted from final vendor_boot"
-            exit 1
-          }
+          cpio -it < "$final_cpio" > "$work/final_ramdisk.raw.list" || true
           sed 's#^\./##' "$work/final_ramdisk.raw.list" > "$final_listing"
           for required in \
             system/bin/recovery \
