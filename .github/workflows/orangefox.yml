@@ -153,13 +153,14 @@ jobs:
           export FOX_PORTS_TMP="$GITHUB_WORKSPACE/fox_installer_tmp"
           mkdir -p "$FOX_PORTS_TMP"
 
+          build_log="$TOP/out/target/product/$DEVICE/vendorbootimage-build.log"
           set +e
-          mka vendorbootimage -j"$(nproc --all)"
-          build_status=$?
+          mka vendorbootimage -j"$(nproc --all)" 2>&1 | tee "$build_log"
+          build_status=${PIPESTATUS[0]}
           set -e
 
           if [ "$build_status" -ne 0 ]; then
-            echo "::warning::OrangeFox vendor_boot repack exceeded the 64 MiB partition; assembling a recovery-only vendor_boot v4 image"
+            echo "::warning::Standard vendor_boot mkbootimg failed; see vendorbootimage-build.log and assemble a recovery-only vendor_boot v4 image"
             fragment="$TOP/out/target/product/$DEVICE/obj/PACKAGING/vendor_ramdisk_fragments_intermediates/recovery.cpio.lz4"
             image="$TOP/out/target/product/$DEVICE/vendor_boot.img"
             mkbootimg="$TOP/out/host/linux-x86/bin/mkbootimg"
@@ -185,6 +186,7 @@ jobs:
               --partition_name vendor_boot \
               --prop "com.android.build.vendor_boot.fingerprint:$(cat "$TOP/out/target/product/$DEVICE/build_fingerprint.txt")"
           fi
+          test -f "$TOP/out/target/product/$DEVICE/vendor_boot.img"
 
       - name: Inspect generated recovery ramdisk
         working-directory: fox_12.1
@@ -374,6 +376,8 @@ jobs:
           cp "$cpio" "$GITHUB_WORKSPACE/artifacts/vendor_ramdisk_recovery.cpio"
           cp "$final_cpio" "$GITHUB_WORKSPACE/artifacts/final_vendor_ramdisk_recovery.cpio"
           cp "$table" "$GITHUB_WORKSPACE/artifacts/vendor_boot_v4_table.txt"
+          cp "$product/vendorbootimage-build.log" \
+            "$GITHUB_WORKSPACE/artifacts/vendorbootimage-build.log"
           cp "$image" "$GITHUB_WORKSPACE/artifacts/orangefox-vendor_boot.img"
           cp "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
             "$GITHUB_WORKSPACE/artifacts/stock-vendor_boot.img"
@@ -401,6 +405,7 @@ jobs:
               artifacts/vendor_ramdisk_recovery.cpio \
               artifacts/final_vendor_ramdisk_recovery.cpio \
               artifacts/vendor_boot_v4_table.txt \
+              artifacts/vendorbootimage-build.log \
               artifacts/orangefox-vendor_boot.img \
               artifacts/stock-vendor_boot.img \
               artifacts/SHA256SUMS \
