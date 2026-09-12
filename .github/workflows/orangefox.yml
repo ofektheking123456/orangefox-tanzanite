@@ -504,10 +504,18 @@ jobs:
               artifacts/SHA256SUMS \
               artifacts/build-info.txt
           )
-          unzip -Z1 "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
-            > "$GITHUB_WORKSPACE/artifacts/zip-contents.txt"
-          ! grep -Fxq 'OrangeFox-tanzanite-recovery-ramdisk.zip' \
-            "$GITHUB_WORKSPACE/artifacts/zip-contents.txt"
+          python3 - "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
+            "$GITHUB_WORKSPACE/artifacts/zip-contents.txt" <<'PY'
+          import sys
+          import zipfile
+
+          archive, listing = sys.argv[1:]
+          with zipfile.ZipFile(archive) as zf:
+              names = zf.namelist()
+          open(listing, "w").write("\n".join(names) + "\n")
+          if "OrangeFox-tanzanite-recovery-ramdisk.zip" in names:
+              raise SystemExit("ZIP recursively contains itself")
+          PY
 
       - name: Upload OrangeFox artifacts
         uses: actions/upload-artifact@v4
