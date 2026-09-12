@@ -115,6 +115,10 @@ jobs:
           mkdir -p fox_12.1/device/xiaomi
           rsync -a --delete device/xiaomi/tanzanite/ \
             fox_12.1/device/xiaomi/tanzanite/
+          grep -qxF 'BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true' \
+            fox_12.1/device/xiaomi/tanzanite/BoardConfig.mk || \
+            printf '\nBOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true\n' \
+              >> fox_12.1/device/xiaomi/tanzanite/BoardConfig.mk
 
       - name: Build vendor_boot recovery image
         working-directory: fox_12.1
