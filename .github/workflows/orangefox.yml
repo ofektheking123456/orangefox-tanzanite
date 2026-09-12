@@ -198,6 +198,8 @@ jobs:
 
           ramdisk=""
           for candidate in \
+            "$product/obj/PACKAGING/vendor_ramdisk_fragments_intermediates/recovery.cpio" \
+            "$product/obj/PACKAGING/vendor_ramdisk_fragments_intermediates/recovery.cpio.lz4" \
             "$product/vendor_ramdisk_recovery.cpio" \
             "$product/vendor_ramdisk_recovery.cpio.lz4" \
             "$product/vendor_ramdisk.cpio" \
