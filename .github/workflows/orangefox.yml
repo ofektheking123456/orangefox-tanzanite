@@ -504,8 +504,10 @@ jobs:
               artifacts/SHA256SUMS \
               artifacts/build-info.txt
           )
-          ! unzip -Z1 "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
-            | grep -Fxq 'OrangeFox-tanzanite-recovery-ramdisk.zip'
+          unzip -Z1 "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
+            > "$GITHUB_WORKSPACE/artifacts/zip-contents.txt"
+          ! grep -Fxq 'OrangeFox-tanzanite-recovery-ramdisk.zip' \
+            "$GITHUB_WORKSPACE/artifacts/zip-contents.txt"
 
       - name: Upload OrangeFox artifacts
         uses: actions/upload-artifact@v4
