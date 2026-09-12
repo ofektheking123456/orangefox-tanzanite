@@ -226,6 +226,7 @@ jobs:
           set -euo pipefail
 
           product="out/target/product/$DEVICE"
+          top="$GITHUB_WORKSPACE/fox_12.1"
           work="$RUNNER_TEMP/tanzanite-recovery-ramdisk"
           mkdir -p "$work"
 
@@ -287,7 +288,7 @@ jobs:
           test "$(dd if="$image" bs=1 count=8 2>/dev/null)" = "VNDRBOOT"
           image_sha256="$(sha256sum "$image" | cut -d' ' -f1)"
           test "$image_sha256" != "$STOCK_VENDOR_BOOT_SHA256"
-          avbtool="$TOP/out/host/linux-x86/bin/avbtool"
+          avbtool="$top/out/host/linux-x86/bin/avbtool"
           "$avbtool" info_image --image "$image" > "$work/generated-avb-info.txt"
           "$avbtool" info_image --image "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
             > "$work/stock-avb-info.txt"
