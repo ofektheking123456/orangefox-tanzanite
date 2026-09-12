@@ -3,6 +3,9 @@ name: Build OrangeFox Tanzanite
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   FOX_BRANCH: 12.1
   DEVICE: tanzanite
@@ -165,10 +168,37 @@ jobs:
             image="$TOP/out/target/product/$DEVICE/vendor_boot.img"
             mkbootimg="$TOP/out/host/linux-x86/bin/mkbootimg"
             avbtool="$TOP/out/host/linux-x86/bin/avbtool"
+            stock="$GITHUB_WORKSPACE/stock/vendor_boot.img"
+            stock_dtb="$RUNNER_TEMP/stock-vendor.dtb"
+            stock_bootconfig="$RUNNER_TEMP/stock-bootconfig"
+            stock_cmdline="$RUNNER_TEMP/stock-vendor-cmdline"
+            python3 - "$stock" "$stock_dtb" "$stock_bootconfig" "$stock_cmdline" <<'PY'
+          import struct
+          import sys
+
+          image, dtb_path, bootconfig_path, cmdline_path = sys.argv[1:]
+          data = open(image, "rb").read()
+          u32 = lambda off: struct.unpack_from("<I", data, off)[0]
+          align = lambda value, size: (value + size - 1) // size * size
+          page = u32(12)
+          header = u32(2096)
+          ramdisk_size = u32(24)
+          dtb_size = u32(2100)
+          table_size = u32(2112)
+          dtb_offset = align(header, page) + align(ramdisk_size, page)
+          table_offset = dtb_offset + align(dtb_size, page)
+          bootconfig_offset = align(table_offset + table_size, page)
+          open(dtb_path, "wb").write(data[dtb_offset:dtb_offset + dtb_size])
+          open(bootconfig_path, "wb").write(
+              data[bootconfig_offset:bootconfig_offset + u32(2124)]
+          )
+          cmdline = data[28:2076].split(b"\0", 1)[0].decode("ascii")
+          open(cmdline_path, "w").write(cmdline)
+          PY
             test -f "$fragment"
             "$mkbootimg" \
-              --dtb "device/xiaomi/$DEVICE/prebuilt/dtb" \
-              --vendor_cmdline "bootopt=64S3,32N2,64N2" \
+              --dtb "$stock_dtb" \
+              --vendor_cmdline "$(cat "$stock_cmdline")" \
               --pagesize 4096 \
               --board "" \
               --kernel_offset 0x00008000 \
@@ -179,6 +209,7 @@ jobs:
               --ramdisk_type RECOVERY \
               --ramdisk_name recovery \
               --vendor_ramdisk_fragment "$fragment" \
+              --vendor_bootconfig "$stock_bootconfig" \
               --vendor_boot "$image"
             "$avbtool" add_hash_footer \
               --image "$image" \
@@ -256,6 +287,14 @@ jobs:
           test "$(dd if="$image" bs=1 count=8 2>/dev/null)" = "VNDRBOOT"
           image_sha256="$(sha256sum "$image" | cut -d' ' -f1)"
           test "$image_sha256" != "$STOCK_VENDOR_BOOT_SHA256"
+          avbtool="$TOP/out/host/linux-x86/bin/avbtool"
+          "$avbtool" info_image --image "$image" > "$work/generated-avb-info.txt"
+          "$avbtool" info_image --image "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
+            > "$work/stock-avb-info.txt"
+          grep -Fq "Partition Size: $STOCK_VENDOR_BOOT_SIZE" \
+            "$work/generated-avb-info.txt"
+          grep -Fq "Partition Size: $STOCK_VENDOR_BOOT_SIZE" \
+            "$work/stock-avb-info.txt"
 
           table="$work/vendor_boot_table.txt"
           python3 - "$image" "$work/final_recovery.ramdisk" "$table" <<'PY'
@@ -367,6 +406,51 @@ jobs:
             echo "::error::Recovery ramdisk extracted from final vendor_boot differs from build output"
             exit 1
           }
+          python3 - "$image" "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
+            "$work/layout-check.txt" <<'PY'
+          import struct
+          import sys
+
+          generated, stock, report = sys.argv[1:]
+          def sections(path):
+              data = open(path, "rb").read()
+              u32 = lambda off: struct.unpack_from("<I", data, off)[0]
+              align = lambda value, size: (value + size - 1) // size * size
+              page = u32(12)
+              header = u32(2096)
+              ramdisk_size = u32(24)
+              dtb_size = u32(2100)
+              table_size = u32(2112)
+              bootconfig_size = u32(2124)
+              ramdisk_offset = align(header, page)
+              dtb_offset = ramdisk_offset + align(ramdisk_size, page)
+              table_offset = dtb_offset + align(dtb_size, page)
+              bootconfig_offset = align(table_offset + table_size, page)
+              return {
+                  "header_version": u32(8),
+                  "page_size": page,
+                  "dtb": data[dtb_offset:dtb_offset + dtb_size],
+                  "bootconfig": data[bootconfig_offset:bootconfig_offset + bootconfig_size],
+                  "dtb_size": dtb_size,
+                  "bootconfig_size": bootconfig_size,
+              }
+          new, old = sections(generated), sections(stock)
+          if new["header_version"] != 4 or old["header_version"] != 4:
+              raise SystemExit("vendor_boot header version mismatch")
+          if new["page_size"] != old["page_size"]:
+              raise SystemExit("vendor_boot page size differs from stock")
+          if new["dtb"] != old["dtb"]:
+              raise SystemExit("generated DTB differs from stock vendor_boot DTB")
+          if new["bootconfig"] != old["bootconfig"]:
+              raise SystemExit("generated bootconfig differs from stock vendor_boot bootconfig")
+          open(report, "w").write(
+              f"stock_dtb_size={old['dtb_size']}\n"
+              f"generated_dtb_size={new['dtb_size']}\n"
+              f"stock_bootconfig_size={old['bootconfig_size']}\n"
+              f"generated_bootconfig_size={new['bootconfig_size']}\n"
+              "dtb_matches_stock=true\nbootconfig_matches_stock=true\n"
+          )
+          PY
           if cmp -s "$image" "$GITHUB_WORKSPACE/stock/vendor_boot.img"; then
             echo "::error::Generated vendor_boot.img is byte-identical to the stock reference"
             exit 1
@@ -378,6 +462,9 @@ jobs:
           cp "$table" "$GITHUB_WORKSPACE/artifacts/vendor_boot_v4_table.txt"
           cp "$product/vendorbootimage-build.log" \
             "$GITHUB_WORKSPACE/artifacts/vendorbootimage-build.log"
+          cp "$work/generated-avb-info.txt" "$GITHUB_WORKSPACE/artifacts/generated-avb-info.txt"
+          cp "$work/stock-avb-info.txt" "$GITHUB_WORKSPACE/artifacts/stock-avb-info.txt"
+          cp "$work/layout-check.txt" "$GITHUB_WORKSPACE/artifacts/layout-check.txt"
           cp "$image" "$GITHUB_WORKSPACE/artifacts/orangefox-vendor_boot.img"
           cp "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
             "$GITHUB_WORKSPACE/artifacts/stock-vendor_boot.img"
@@ -406,6 +493,9 @@ jobs:
               artifacts/final_vendor_ramdisk_recovery.cpio \
               artifacts/vendor_boot_v4_table.txt \
               artifacts/vendorbootimage-build.log \
+              artifacts/generated-avb-info.txt \
+              artifacts/stock-avb-info.txt \
+              artifacts/layout-check.txt \
               artifacts/orangefox-vendor_boot.img \
               artifacts/stock-vendor_boot.img \
               artifacts/SHA256SUMS \
@@ -422,3 +512,24 @@ jobs:
           path: |
             OrangeFox-tanzanite-recovery-ramdisk.zip
             artifacts/
+
+      - name: Upload OrangeFox release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="orangefox-tanzanite-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" \
+            --target "$GITHUB_SHA" \
+            --title "OrangeFox Tanzanite $GITHUB_RUN_NUMBER" \
+            --notes "Validated OrangeFox vendor_boot for tanzanite, OS3.0.303.0.WOGMIXM." \
+            "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
+            "$GITHUB_WORKSPACE/artifacts/orangefox-vendor_boot.img" \
+            "$GITHUB_WORKSPACE/artifacts/stock-vendor_boot.img" \
+            "$GITHUB_WORKSPACE/artifacts/SHA256SUMS" \
+            "$GITHUB_WORKSPACE/artifacts/build-info.txt" \
+            "$GITHUB_WORKSPACE/artifacts/vendor_boot_v4_table.txt" \
+            "$GITHUB_WORKSPACE/artifacts/layout-check.txt" \
+            "$GITHUB_WORKSPACE/artifacts/generated-avb-info.txt" \
+            "$GITHUB_WORKSPACE/artifacts/stock-avb-info.txt"
