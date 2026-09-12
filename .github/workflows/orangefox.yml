@@ -287,8 +287,10 @@ jobs:
               raise SystemExit("ramdisk table size does not match entry count")
 
           ramdisk_offset = align(header_size, page_size)
-          table_offset = align(
-              ramdisk_offset + vendor_ramdisk_size + dtb_size, page_size
+          table_offset = (
+              ramdisk_offset
+              + align(vendor_ramdisk_size, page_size)
+              + align(dtb_size, page_size)
           )
           if table_offset + table_size > len(data):
               raise SystemExit("vendor ramdisk table exceeds image")
