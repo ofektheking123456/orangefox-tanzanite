@@ -498,15 +498,11 @@ jobs:
 
           archive, listing = sys.argv[1:]
           files = [
-              "vendor_ramdisk_recovery.cpio",
-              "final_vendor_ramdisk_recovery.cpio",
               "vendor_boot_v4_table.txt",
               "vendorbootimage-build.log",
               "generated-avb-info.txt",
               "stock-avb-info.txt",
               "layout-check.txt",
-              "orangefox-vendor_boot.img",
-              "stock-vendor_boot.img",
               "SHA256SUMS",
               "build-info.txt",
           ]
