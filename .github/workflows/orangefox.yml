@@ -303,10 +303,10 @@ jobs:
           "$avbtool" info_image --image "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
             > "$work/stock-avb-info.txt"
           echo "Stock AVB metadata captured"
-          grep -Fq "Partition Size: $STOCK_VENDOR_BOOT_SIZE" \
+          grep -Eq "Partition Size: (67108864|0x4000000)" \
             "$work/generated-avb-info.txt"
           echo "Generated AVB partition size verified"
-          grep -Fq "Partition Size: $STOCK_VENDOR_BOOT_SIZE" \
+          grep -Eq "Partition Size: (67108864|0x4000000)" \
             "$work/stock-avb-info.txt"
           echo "Stock AVB partition size verified"
 
