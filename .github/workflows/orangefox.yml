@@ -275,7 +275,7 @@ jobs:
             sbin/foxstart.sh \
             system/etc/recovery.fstab \
             system/etc/fox.cfg; do
-            if ! grep -Eq "^(\\./)?${required//./\\.}(/)?$" "$work/ramdisk.raw.list"; then
+            if ! grep -Fq "$required" "$work/ramdisk.raw.list"; then
               echo "::error::Generated recovery ramdisk missing $required"
               grep -E "(recovery|fox)" "$work/ramdisk.raw.list" | tail -n 20 || true
               exit 1
@@ -403,7 +403,7 @@ jobs:
             sbin/foxstart.sh \
             system/etc/recovery.fstab \
             system/etc/fox.cfg; do
-            if ! grep -Eq "^(\\./)?${required//./\\.}(/)?$" "$work/final_ramdisk.raw.list"; then
+            if ! grep -Fq "$required" "$work/final_ramdisk.raw.list"; then
               echo "::error::Final vendor_boot recovery ramdisk missing $required"
               grep -E "(recovery|fox)" "$work/final_ramdisk.raw.list" | tail -n 20 || true
               exit 1
