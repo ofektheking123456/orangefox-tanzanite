@@ -489,27 +489,31 @@ jobs:
             echo "orangefox_vendor_boot_sha256=$image_sha256"
             echo "stock_reference=stock-vendor_boot.img"
           } > "$GITHUB_WORKSPACE/artifacts/build-info.txt"
-          (
-            cd "$GITHUB_WORKSPACE"
-            zip -9 -r "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
-              artifacts/vendor_ramdisk_recovery.cpio \
-              artifacts/final_vendor_ramdisk_recovery.cpio \
-              artifacts/vendor_boot_v4_table.txt \
-              artifacts/vendorbootimage-build.log \
-              artifacts/generated-avb-info.txt \
-              artifacts/stock-avb-info.txt \
-              artifacts/layout-check.txt \
-              artifacts/orangefox-vendor_boot.img \
-              artifacts/stock-vendor_boot.img \
-              artifacts/SHA256SUMS \
-              artifacts/build-info.txt
-          )
           python3 - "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
             "$GITHUB_WORKSPACE/artifacts/zip-contents.txt" <<'PY'
-          import sys
           import zipfile
+          import sys
+          import os
+          from pathlib import Path
 
           archive, listing = sys.argv[1:]
+          files = [
+              "vendor_ramdisk_recovery.cpio",
+              "final_vendor_ramdisk_recovery.cpio",
+              "vendor_boot_v4_table.txt",
+              "vendorbootimage-build.log",
+              "generated-avb-info.txt",
+              "stock-avb-info.txt",
+              "layout-check.txt",
+              "orangefox-vendor_boot.img",
+              "stock-vendor_boot.img",
+              "SHA256SUMS",
+              "build-info.txt",
+          ]
+          root = Path(os.environ["GITHUB_WORKSPACE"]) / "artifacts"
+          with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as zf:
+              for name in files:
+                  zf.write(root / name, f"artifacts/{name}")
           with zipfile.ZipFile(archive) as zf:
               names = zf.namelist()
           open(listing, "w").write("\n".join(names) + "\n")
