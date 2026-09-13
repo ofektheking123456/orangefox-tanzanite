@@ -291,17 +291,24 @@ jobs:
             exit 1
           }
           test "$(stat -c%s "$image")" -eq "$STOCK_VENDOR_BOOT_SIZE"
+          echo "Final vendor_boot size verified"
           test "$(dd if="$image" bs=1 count=8 2>/dev/null)" = "VNDRBOOT"
+          echo "Final vendor_boot magic verified"
           image_sha256="$(sha256sum "$image" | cut -d' ' -f1)"
           test "$image_sha256" != "$STOCK_VENDOR_BOOT_SHA256"
+          echo "Final vendor_boot differs from stock SHA"
           avbtool="$top/out/host/linux-x86/bin/avbtool"
           "$avbtool" info_image --image "$image" > "$work/generated-avb-info.txt"
+          echo "Generated AVB metadata captured"
           "$avbtool" info_image --image "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
             > "$work/stock-avb-info.txt"
+          echo "Stock AVB metadata captured"
           grep -Fq "Partition Size: $STOCK_VENDOR_BOOT_SIZE" \
             "$work/generated-avb-info.txt"
+          echo "Generated AVB partition size verified"
           grep -Fq "Partition Size: $STOCK_VENDOR_BOOT_SIZE" \
             "$work/stock-avb-info.txt"
+          echo "Stock AVB partition size verified"
 
           table="$work/vendor_boot_table.txt"
           python3 - "$image" "$work/final_recovery.ramdisk" "$table" <<'PY'
