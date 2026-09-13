@@ -278,10 +278,17 @@ jobs:
               "system/etc/recovery.fstab",
               "system/etc/fox.cfg",
           }
-          found = {line.strip().lstrip("./") for line in open(sys.argv[1])}
+          found = set()
+          for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+              path = line.strip()
+              if path.startswith("./"):
+                  path = path[2:]
+              found.add(path.rstrip("/"))
           missing = sorted(required - found)
           if missing:
-              raise SystemExit("Generated recovery ramdisk missing: " + ", ".join(missing))
+              print("Generated recovery ramdisk missing: " + ", ".join(missing))
+              print("Available matching paths:", sorted(path for path in found if "recovery" in path or "fox" in path))
+              raise SystemExit(1)
           PY
 
           image="$product/vendor_boot.img"
@@ -408,10 +415,17 @@ jobs:
               "system/etc/recovery.fstab",
               "system/etc/fox.cfg",
           }
-          found = {line.strip().lstrip("./") for line in open(sys.argv[1])}
+          found = set()
+          for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+              path = line.strip()
+              if path.startswith("./"):
+                  path = path[2:]
+              found.add(path.rstrip("/"))
           missing = sorted(required - found)
           if missing:
-              raise SystemExit("Final vendor_boot recovery ramdisk missing: " + ", ".join(missing))
+              print("Final vendor_boot recovery ramdisk missing: " + ", ".join(missing))
+              print("Available matching paths:", sorted(path for path in found if "recovery" in path or "fox" in path))
+              raise SystemExit(1)
           PY
           echo "Final recovery ramdisk required files verified"
           if ! cmp -s "$cpio" "$final_cpio"; then
