@@ -268,6 +268,7 @@ jobs:
           listing="$work/ramdisk.list"
           cpio -it < "$cpio" > "$work/ramdisk.raw.list" || true
           sed 's#^\./##' "$work/ramdisk.raw.list" > "$listing"
+          echo "Generated recovery ramdisk listing captured"
           for required in \
             system/bin/recovery \
             system/bin/fastbootd \
@@ -394,6 +395,7 @@ jobs:
           final_listing="$work/final_ramdisk.list"
           cpio -it < "$final_cpio" > "$work/final_ramdisk.raw.list" || true
           sed 's#^\./##' "$work/final_ramdisk.raw.list" > "$final_listing"
+          echo "Final recovery ramdisk listing captured"
           for required in \
             system/bin/recovery \
             system/bin/fastbootd \
@@ -405,10 +407,12 @@ jobs:
               exit 1
             }
           done
-          cmp -s "$cpio" "$final_cpio" || {
-            echo "::error::Recovery ramdisk extracted from final vendor_boot differs from build output"
+          echo "Final recovery ramdisk required files verified"
+          if ! cmp -s "$cpio" "$final_cpio"; then
+            echo "FAIL: Recovery ramdisk extracted from final vendor_boot differs from build output"
             exit 1
-          }
+          fi
+          echo "Final recovery ramdisk matches build output"
           python3 - "$image" "$GITHUB_WORKSPACE/stock/vendor_boot.img" \
             "$work/layout-check.txt" <<'PY'
           import struct
@@ -455,9 +459,10 @@ jobs:
           )
           PY
           if cmp -s "$image" "$GITHUB_WORKSPACE/stock/vendor_boot.img"; then
-            echo "::error::Generated vendor_boot.img is byte-identical to the stock reference"
+            echo "FAIL: Generated vendor_boot.img is byte-identical to the stock reference"
             exit 1
           fi
+          echo "Generated vendor_boot differs from stock reference"
 
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
           cp "$cpio" "$GITHUB_WORKSPACE/artifacts/vendor_ramdisk_recovery.cpio"
