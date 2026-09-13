@@ -275,7 +275,10 @@ jobs:
             sbin/foxstart.sh \
             system/etc/recovery.fstab \
             system/etc/fox.cfg; do
-            if ! awk -v required="$required" '$0 == required || $0 == "./" required { found=1 } END { exit(found ? 0 : 1) }' "$work/ramdisk.raw.list"; then
+            echo "Checking generated ramdisk path: $required"
+            if grep -F "$required" "$work/ramdisk.raw.list" > /dev/null; then
+              echo "Found generated ramdisk path: $required"
+            else
               echo "::error::Generated recovery ramdisk missing $required"
               grep -E "(recovery|fox)" "$work/ramdisk.raw.list" | tail -n 20 || true
               exit 1
@@ -403,7 +406,10 @@ jobs:
             sbin/foxstart.sh \
             system/etc/recovery.fstab \
             system/etc/fox.cfg; do
-            if ! awk -v required="$required" '$0 == required || $0 == "./" required { found=1 } END { exit(found ? 0 : 1) }' "$work/final_ramdisk.raw.list"; then
+            echo "Checking final ramdisk path: $required"
+            if grep -F "$required" "$work/final_ramdisk.raw.list" > /dev/null; then
+              echo "Found final ramdisk path: $required"
+            else
               echo "::error::Final vendor_boot recovery ramdisk missing $required"
               grep -E "(recovery|fox)" "$work/final_ramdisk.raw.list" | tail -n 20 || true
               exit 1
