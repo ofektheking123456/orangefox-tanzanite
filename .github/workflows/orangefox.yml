@@ -269,27 +269,18 @@ jobs:
           cpio -it < "$cpio" > "$work/ramdisk.raw.list" || true
           sed 's#^\./##' "$work/ramdisk.raw.list" > "$listing"
           echo "Generated recovery ramdisk listing captured"
-          python3 - "$listing" <<'PY'
-          import sys
-          required = {
-              "system/bin/recovery",
-              "system/bin/fastbootd",
-              "sbin/foxstart.sh",
-              "system/etc/recovery.fstab",
-              "system/etc/fox.cfg",
-          }
-          found = set()
-          for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
-              path = line.strip()
-              if path.startswith("./"):
-                  path = path[2:]
-              found.add(path.rstrip("/"))
-          missing = sorted(required - found)
-          if missing:
-              print("Generated recovery ramdisk missing: " + ", ".join(missing))
-              print("Available matching paths:", sorted(path for path in found if "recovery" in path or "fox" in path))
-              raise SystemExit(1)
-          PY
+          for required in \
+            system/bin/recovery \
+            system/bin/fastbootd \
+            sbin/foxstart.sh \
+            system/etc/recovery.fstab \
+            system/etc/fox.cfg; do
+            if ! grep -Eq "^(\\./)?${required//./\\.}(/)?$" "$work/ramdisk.raw.list"; then
+              echo "::error::Generated recovery ramdisk missing $required"
+              grep -E "(recovery|fox)" "$work/ramdisk.raw.list" | tail -n 20 || true
+              exit 1
+            fi
+          done
 
           image="$product/vendor_boot.img"
           test -f "$image" || {
@@ -406,27 +397,18 @@ jobs:
           cpio -it < "$final_cpio" > "$work/final_ramdisk.raw.list" || true
           sed 's#^\./##' "$work/final_ramdisk.raw.list" > "$final_listing"
           echo "Final recovery ramdisk listing captured"
-          python3 - "$final_listing" <<'PY'
-          import sys
-          required = {
-              "system/bin/recovery",
-              "system/bin/fastbootd",
-              "sbin/foxstart.sh",
-              "system/etc/recovery.fstab",
-              "system/etc/fox.cfg",
-          }
-          found = set()
-          for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
-              path = line.strip()
-              if path.startswith("./"):
-                  path = path[2:]
-              found.add(path.rstrip("/"))
-          missing = sorted(required - found)
-          if missing:
-              print("Final vendor_boot recovery ramdisk missing: " + ", ".join(missing))
-              print("Available matching paths:", sorted(path for path in found if "recovery" in path or "fox" in path))
-              raise SystemExit(1)
-          PY
+          for required in \
+            system/bin/recovery \
+            system/bin/fastbootd \
+            sbin/foxstart.sh \
+            system/etc/recovery.fstab \
+            system/etc/fox.cfg; do
+            if ! grep -Eq "^(\\./)?${required//./\\.}(/)?$" "$work/final_ramdisk.raw.list"; then
+              echo "::error::Final vendor_boot recovery ramdisk missing $required"
+              grep -E "(recovery|fox)" "$work/final_ramdisk.raw.list" | tail -n 20 || true
+              exit 1
+            fi
+          done
           echo "Final recovery ramdisk required files verified"
           if ! cmp -s "$cpio" "$final_cpio"; then
             echo "FAIL: Recovery ramdisk extracted from final vendor_boot differs from build output"
