@@ -489,42 +489,12 @@ jobs:
             echo "orangefox_vendor_boot_sha256=$image_sha256"
             echo "stock_reference=stock-vendor_boot.img"
           } > "$GITHUB_WORKSPACE/artifacts/build-info.txt"
-          python3 - "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
-            "$GITHUB_WORKSPACE/artifacts/zip-contents.txt" <<'PY'
-          import zipfile
-          import sys
-          import os
-          from pathlib import Path
-
-          archive, listing = sys.argv[1:]
-          files = [
-              "vendor_boot_v4_table.txt",
-              "vendorbootimage-build.log",
-              "generated-avb-info.txt",
-              "stock-avb-info.txt",
-              "layout-check.txt",
-              "SHA256SUMS",
-              "build-info.txt",
-          ]
-          root = Path(os.environ["GITHUB_WORKSPACE"]) / "artifacts"
-          with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as zf:
-              for name in files:
-                  zf.write(root / name, f"artifacts/{name}")
-          with zipfile.ZipFile(archive) as zf:
-              names = zf.namelist()
-          open(listing, "w").write("\n".join(names) + "\n")
-          if "OrangeFox-tanzanite-recovery-ramdisk.zip" in names:
-              raise SystemExit("ZIP recursively contains itself")
-          PY
-
       - name: Upload OrangeFox artifacts
         uses: actions/upload-artifact@v4
         with:
           name: OrangeFox-tanzanite-recovery-ramdisk
           if-no-files-found: error
-          path: |
-            OrangeFox-tanzanite-recovery-ramdisk.zip
-            artifacts/
+          path: artifacts/
 
       - name: Upload OrangeFox release
         env:
@@ -537,9 +507,11 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "OrangeFox Tanzanite $GITHUB_RUN_NUMBER" \
             --notes "Validated OrangeFox vendor_boot for tanzanite, OS3.0.303.0.WOGMIXM." \
-            "$GITHUB_WORKSPACE/OrangeFox-tanzanite-recovery-ramdisk.zip" \
             "$GITHUB_WORKSPACE/artifacts/orangefox-vendor_boot.img" \
             "$GITHUB_WORKSPACE/artifacts/stock-vendor_boot.img" \
+            "$GITHUB_WORKSPACE/artifacts/vendor_ramdisk_recovery.cpio" \
+            "$GITHUB_WORKSPACE/artifacts/final_vendor_ramdisk_recovery.cpio" \
+            "$GITHUB_WORKSPACE/artifacts/vendorbootimage-build.log" \
             "$GITHUB_WORKSPACE/artifacts/SHA256SUMS" \
             "$GITHUB_WORKSPACE/artifacts/build-info.txt" \
             "$GITHUB_WORKSPACE/artifacts/vendor_boot_v4_table.txt" \
